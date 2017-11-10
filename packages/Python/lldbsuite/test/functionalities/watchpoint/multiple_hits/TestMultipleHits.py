@@ -21,7 +21,7 @@ class MultipleHitsTestCase(TestBase):
     @expectedFailureAll(
         oslist=["windows"],
         bugnumber="llvm.org/pr24446: WINDOWS XFAIL TRIAGE - Watchpoints not supported on Windows")
-    @skipIf(bugnumber="llvm.org/pr30758", oslist=["linux"], archs=["arm", "aarch64"])
+    @skipIf(bugnumber="llvm.org/pr30758", oslist=["linux"], archs=["arm", "aarch64", "powerpc64le"])
     def test(self):
         self.build()
         exe = os.path.join(os.getcwd(), "a.out")
@@ -55,4 +55,3 @@ class MultipleHitsTestCase(TestBase):
         process.Continue();
         self.assertEqual(process.GetState(), lldb.eStateStopped)
         self.assertEqual(thread.GetStopReason(), lldb.eStopReasonWatchpoint)
-
