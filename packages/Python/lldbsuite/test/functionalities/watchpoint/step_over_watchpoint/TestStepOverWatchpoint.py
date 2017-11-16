@@ -17,7 +17,8 @@ class TestStepOverWatchpoint(TestBase):
         oslist=["linux"],
         archs=[
             'aarch64',
-            'arm'],
+            'arm',
+            'powerpc64le'],
         bugnumber="llvm.org/pr26031")
     @expectedFailureAll(
         oslist=["windows"],
