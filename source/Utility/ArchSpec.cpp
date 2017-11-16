@@ -7,16 +7,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "lldb/Core/ArchSpec.h"
+#include "lldb/Utility/ArchSpec.h"
 
-#include "lldb/Host/HostInfo.h"
-#include "lldb/Target/Platform.h"
 #include "lldb/Utility/NameMatches.h"
 #include "lldb/Utility/Stream.h" // for Stream
 #include "lldb/Utility/StringList.h"
 #include "lldb/lldb-defines.h" // for LLDB_INVALID_C...
-#include "lldb/lldb-forward.h" // for RegisterContextSP
-
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Twine.h" // for Twine
 #include "llvm/BinaryFormat/COFF.h"
@@ -24,10 +20,6 @@
 #include "llvm/BinaryFormat/MachO.h" // for CPUType::CPU_T...
 #include "llvm/Support/Compiler.h"   // for LLVM_FALLTHROUGH
 #include "llvm/Support/Host.h"
-
-#include <memory> // for shared_ptr
-#include <string>
-#include <tuple> // for tie, tuple
 
 using namespace lldb;
 using namespace lldb_private;
@@ -184,7 +176,7 @@ static const CoreDefinition g_core_definitions[] = {
      "ppc970"},
 
     {eByteOrderLittle, 8, 4, 4, llvm::Triple::ppc64le,
-      ArchSpec::eCore_ppc64le_generic, "powerpc64le"},
+     ArchSpec::eCore_ppc64le_generic, "powerpc64le"},
     {eByteOrderBig, 8, 4, 4, llvm::Triple::ppc64, ArchSpec::eCore_ppc64_generic,
      "powerpc64"},
     {eByteOrderBig, 8, 4, 4, llvm::Triple::ppc64,
@@ -367,9 +359,9 @@ static const ArchDefinitionEntry g_macho_arch_entries[] = {
      SUBTYPE_MASK},
     {ArchSpec::eCore_ppc_ppc970, llvm::MachO::CPU_TYPE_POWERPC, 100, UINT32_MAX,
      SUBTYPE_MASK},
-    {ArchSpec::eCore_ppc64le_generic, llvm::MachO::CPU_TYPE_POWERPC64, CPU_ANY,
-     UINT32_MAX, SUBTYPE_MASK},
     {ArchSpec::eCore_ppc64_generic, llvm::MachO::CPU_TYPE_POWERPC64, 0,
+     UINT32_MAX, SUBTYPE_MASK},
+    {ArchSpec::eCore_ppc64le_generic, llvm::MachO::CPU_TYPE_POWERPC64, CPU_ANY,
      UINT32_MAX, SUBTYPE_MASK},
     {ArchSpec::eCore_ppc64_ppc970_64, llvm::MachO::CPU_TYPE_POWERPC64, 100,
      UINT32_MAX, SUBTYPE_MASK},
@@ -462,7 +454,9 @@ static const ArchDefinitionEntry g_elf_arch_entries[] = {
 };
 
 static const ArchDefinition g_elf_arch_def = {
-    eArchTypeELF, llvm::array_lengthof(g_elf_arch_entries), g_elf_arch_entries,
+    eArchTypeELF,
+    llvm::array_lengthof(g_elf_arch_entries),
+    g_elf_arch_entries,
     "elf",
 };
 
@@ -484,8 +478,10 @@ static const ArchDefinitionEntry g_coff_arch_entries[] = {
 };
 
 static const ArchDefinition g_coff_arch_def = {
-    eArchTypeCOFF, llvm::array_lengthof(g_coff_arch_entries),
-    g_coff_arch_entries, "pe-coff",
+    eArchTypeCOFF,
+    llvm::array_lengthof(g_coff_arch_entries),
+    g_coff_arch_entries,
+    "pe-coff",
 };
 
 //===----------------------------------------------------------------------===//
@@ -519,7 +515,7 @@ static const CoreDefinition *FindCoreDefinition(llvm::StringRef name) {
 }
 
 static inline const CoreDefinition *FindCoreDefinition(ArchSpec::Core core) {
-  if (core >= 0 && core < llvm::array_lengthof(g_core_definitions))
+  if (core < llvm::array_lengthof(g_core_definitions))
     return &g_core_definitions[core];
   return nullptr;
 }
@@ -556,15 +552,6 @@ FindArchDefinitionEntry(const ArchDefinition *def, ArchSpec::Core core) {
 // Constructors and destructors.
 
 ArchSpec::ArchSpec() {}
-
-ArchSpec::ArchSpec(const char *triple_cstr, Platform *platform) {
-  if (triple_cstr)
-    SetTriple(triple_cstr, platform);
-}
-
-ArchSpec::ArchSpec(llvm::StringRef triple_str, Platform *platform) {
-  SetTriple(triple_str, platform);
-}
 
 ArchSpec::ArchSpec(const char *triple_cstr) {
   if (triple_cstr)
@@ -875,16 +862,6 @@ bool lldb_private::ParseMachCPUDashSubtypeTriple(llvm::StringRef triple_str,
   return true;
 }
 
-bool ArchSpec::SetTriple(const char *triple_cstr) {
-  llvm::StringRef str(triple_cstr ? triple_cstr : "");
-  return SetTriple(str);
-}
-
-bool ArchSpec::SetTriple(const char *triple_cstr, Platform *platform) {
-  llvm::StringRef str(triple_cstr ? triple_cstr : "");
-  return SetTriple(str, platform);
-}
-
 bool ArchSpec::SetTriple(llvm::StringRef triple) {
   if (triple.empty()) {
     Clear();
@@ -894,87 +871,15 @@ bool ArchSpec::SetTriple(llvm::StringRef triple) {
   if (ParseMachCPUDashSubtypeTriple(triple, *this))
     return true;
 
-  if (triple.startswith(LLDB_ARCH_DEFAULT)) {
-    // Special case for the current host default architectures...
-    if (triple.equals(LLDB_ARCH_DEFAULT_32BIT))
-      *this = HostInfo::GetArchitecture(HostInfo::eArchKind32);
-    else if (triple.equals(LLDB_ARCH_DEFAULT_64BIT))
-      *this = HostInfo::GetArchitecture(HostInfo::eArchKind64);
-    else if (triple.equals(LLDB_ARCH_DEFAULT))
-      *this = HostInfo::GetArchitecture(HostInfo::eArchKindDefault);
-  } else {
-    SetTriple(llvm::Triple(llvm::Triple::normalize(triple)));
-  }
+  SetTriple(llvm::Triple(llvm::Triple::normalize(triple)));
   return IsValid();
 }
 
-bool ArchSpec::SetTriple(llvm::StringRef triple, Platform *platform) {
-  if (triple.empty()) {
-    Clear();
-    return false;
-  }
-  if (ParseMachCPUDashSubtypeTriple(triple, *this))
-    return true;
-
-  if (triple.startswith(LLDB_ARCH_DEFAULT)) {
-    // Special case for the current host default architectures...
-    if (triple.equals(LLDB_ARCH_DEFAULT_32BIT))
-      *this = HostInfo::GetArchitecture(HostInfo::eArchKind32);
-    else if (triple.equals(LLDB_ARCH_DEFAULT_64BIT))
-      *this = HostInfo::GetArchitecture(HostInfo::eArchKind64);
-    else if (triple.equals(LLDB_ARCH_DEFAULT))
-      *this = HostInfo::GetArchitecture(HostInfo::eArchKindDefault);
-    return IsValid();
-  }
-
-  ArchSpec raw_arch(triple);
-
-  llvm::Triple normalized_triple(llvm::Triple::normalize(triple));
-
-  const bool os_specified = !normalized_triple.getOSName().empty();
-  const bool vendor_specified = !normalized_triple.getVendorName().empty();
-  const bool env_specified = !normalized_triple.getEnvironmentName().empty();
-
-  if (os_specified || vendor_specified || env_specified) {
-    SetTriple(normalized_triple);
-    return IsValid();
-  }
-
-  // We got an arch only.  If there is no platform, fallback to the host system
-  // for defaults.
-  if (!platform) {
-    llvm::Triple host_triple(llvm::sys::getDefaultTargetTriple());
-    if (!vendor_specified)
-      normalized_triple.setVendor(host_triple.getVendor());
-    if (!vendor_specified)
-      normalized_triple.setOS(host_triple.getOS());
-    if (!env_specified && host_triple.getEnvironmentName().size())
-      normalized_triple.setEnvironment(host_triple.getEnvironment());
-    SetTriple(normalized_triple);
-    return IsValid();
-  }
-
-  // If we were given a platform, use the platform's system architecture. If
-  // this is not available (might not be connected) use the first supported
-  // architecture.
-  ArchSpec compatible_arch;
-  if (!platform->IsCompatibleArchitecture(raw_arch, false, &compatible_arch)) {
-    *this = raw_arch;
-    return IsValid();
-  }
-
-  if (compatible_arch.IsValid()) {
-    const llvm::Triple &compatible_triple = compatible_arch.GetTriple();
-    if (!vendor_specified)
-      normalized_triple.setVendor(compatible_triple.getVendor());
-    if (!os_specified)
-      normalized_triple.setOS(compatible_triple.getOS());
-    if (!env_specified && compatible_triple.hasEnvironment())
-      normalized_triple.setEnvironment(compatible_triple.getEnvironment());
-  }
-
-  SetTriple(normalized_triple);
-  return IsValid();
+bool ArchSpec::ContainsOnlyArch(const llvm::Triple &normalized_triple) {
+  return !normalized_triple.getArchName().empty() &&
+         normalized_triple.getOSName().empty() &&
+         normalized_triple.getVendorName().empty() &&
+         normalized_triple.getEnvironmentName().empty();
 }
 
 void ArchSpec::MergeFrom(const ArchSpec &other) {
@@ -1002,6 +907,9 @@ void ArchSpec::MergeFrom(const ArchSpec &other) {
       other.GetCore() != ArchSpec::eCore_arm_generic) {
     m_core = other.GetCore();
     CoreUpdated(true);
+  }
+  if (GetFlags() == 0) {
+    SetFlags(other.GetFlags());
   }
 }
 

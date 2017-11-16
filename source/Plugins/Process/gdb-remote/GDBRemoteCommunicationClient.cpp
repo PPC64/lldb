@@ -1614,8 +1614,8 @@ GDBRemoteCommunicationClient::GetWatchpointsTriggerAfterInstruction(
     // For MIPS and ppc64le, set m_watchpoints_trigger_after_instruction to
     // eLazyBoolNo if it is not calculated before.
     if ((m_watchpoints_trigger_after_instruction == eLazyBoolCalculate &&
-        (atype == llvm::Triple::mips || atype == llvm::Triple::mipsel ||
-         atype == llvm::Triple::mips64 || atype == llvm::Triple::mips64el)) ||
+         (atype == llvm::Triple::mips || atype == llvm::Triple::mipsel ||
+          atype == llvm::Triple::mips64 || atype == llvm::Triple::mips64el)) ||
         atype == llvm::Triple::ppc64le) {
       m_watchpoints_trigger_after_instruction = eLazyBoolNo;
     }

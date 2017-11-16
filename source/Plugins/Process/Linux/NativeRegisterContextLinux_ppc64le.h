@@ -30,8 +30,7 @@ class NativeProcessLinux;
 class NativeRegisterContextLinux_ppc64le : public NativeRegisterContextLinux {
 public:
   NativeRegisterContextLinux_ppc64le(const ArchSpec &target_arch,
-                                   NativeThreadProtocol &native_thread,
-                                   uint32_t concrete_frame_idx);
+                                     NativeThreadProtocol &native_thread);
 
   uint32_t GetRegisterSetCount() const override;
 
@@ -80,14 +79,6 @@ protected:
 
   Status DoWriteFPR(void *buf, size_t buf_size) override;
 
-  Status DoReadVMX(void *buf, size_t buf_size);
-
-  Status DoWriteVMX(void *buf, size_t buf_size);
-
-  Status DoReadVSX(void *buf, size_t buf_size);
-
-  Status DoWriteVSX(void *buf, size_t buf_size);
-
   bool IsVMX(unsigned reg);
 
   bool IsVSX(unsigned reg);
@@ -104,15 +95,7 @@ protected:
 
   void *GetFPRBuffer() override { return &m_fpr_ppc64le; }
 
-  void *GetVMXBuffer() { return &m_vmx_ppc64le; }
-
-  void *GetVSXBuffer() { return &m_vsx_ppc64le; }
-
   size_t GetFPRSize() override { return sizeof(m_fpr_ppc64le); }
-
-  size_t GetVMXSize() { return sizeof(m_vmx_ppc64le); }
-
-  size_t GetVSXSize() { return sizeof(m_vsx_ppc64le); }
 
 private:
   GPR m_gpr_ppc64le; // 64-bit general purpose registers.
@@ -150,12 +133,12 @@ private:
     int mode;               // Defines if watchpoint is read/write/access.
   };
 
-  struct DREG m_hwp_regs[4];
+  std::array<DREG, 4> m_hwp_regs;
 
-  uint32_t m_max_hwp_supported;
-  uint32_t m_max_hbp_supported;
-  bool m_refresh_hwdebug_info;
-
+  // 16 is just a maximum value, query hardware for actual watchpoint count
+  uint32_t m_max_hwp_supported = 16;
+  uint32_t m_max_hbp_supported = 16;
+  bool m_refresh_hwdebug_info = true;
 };
 
 } // namespace process_linux

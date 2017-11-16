@@ -32,9 +32,8 @@
 #include <elf.h>
 #include <asm/ptrace.h>
 
-#define REG_CONTEXT_SIZE (GetGPRSize() + GetFPRSize() \
-                          + GetVMXSize() + GetVSXSize())
-
+#define REG_CONTEXT_SIZE                                                       \
+  (GetGPRSize() + GetFPRSize() + sizeof(m_vmx_ppc64le) + sizeof(m_vsx_ppc64le))
 using namespace lldb;
 using namespace lldb_private;
 using namespace lldb_private::process_linux;
@@ -54,46 +53,46 @@ static const uint32_t g_gpr_regnums_ppc64le[] = {
 };
 
 static const uint32_t g_fpr_regnums_ppc64le[] = {
-    fpr_f0_ppc64le,   fpr_f1_ppc64le,  fpr_f2_ppc64le,  fpr_f3_ppc64le,
-    fpr_f4_ppc64le,   fpr_f5_ppc64le,  fpr_f6_ppc64le,  fpr_f7_ppc64le,
-    fpr_f8_ppc64le,   fpr_f9_ppc64le,  fpr_f10_ppc64le, fpr_f11_ppc64le,
-    fpr_f12_ppc64le,  fpr_f13_ppc64le, fpr_f14_ppc64le, fpr_f15_ppc64le,
-    fpr_f16_ppc64le,  fpr_f17_ppc64le, fpr_f18_ppc64le, fpr_f19_ppc64le,
-    fpr_f20_ppc64le,  fpr_f21_ppc64le, fpr_f22_ppc64le, fpr_f23_ppc64le,
-    fpr_f24_ppc64le,  fpr_f25_ppc64le, fpr_f26_ppc64le, fpr_f27_ppc64le,
-    fpr_f28_ppc64le,  fpr_f29_ppc64le, fpr_f30_ppc64le, fpr_f31_ppc64le,
+    fpr_f0_ppc64le,    fpr_f1_ppc64le,  fpr_f2_ppc64le,  fpr_f3_ppc64le,
+    fpr_f4_ppc64le,    fpr_f5_ppc64le,  fpr_f6_ppc64le,  fpr_f7_ppc64le,
+    fpr_f8_ppc64le,    fpr_f9_ppc64le,  fpr_f10_ppc64le, fpr_f11_ppc64le,
+    fpr_f12_ppc64le,   fpr_f13_ppc64le, fpr_f14_ppc64le, fpr_f15_ppc64le,
+    fpr_f16_ppc64le,   fpr_f17_ppc64le, fpr_f18_ppc64le, fpr_f19_ppc64le,
+    fpr_f20_ppc64le,   fpr_f21_ppc64le, fpr_f22_ppc64le, fpr_f23_ppc64le,
+    fpr_f24_ppc64le,   fpr_f25_ppc64le, fpr_f26_ppc64le, fpr_f27_ppc64le,
+    fpr_f28_ppc64le,   fpr_f29_ppc64le, fpr_f30_ppc64le, fpr_f31_ppc64le,
     fpr_fpscr_ppc64le,
 };
 
 static const uint32_t g_vmx_regnums_ppc64le[] = {
-    vmx_vr0_ppc64le,   vmx_vr1_ppc64le,   vmx_vr2_ppc64le,  vmx_vr3_ppc64le,
-    vmx_vr4_ppc64le,   vmx_vr5_ppc64le,   vmx_vr6_ppc64le,  vmx_vr7_ppc64le,
-    vmx_vr8_ppc64le,   vmx_vr9_ppc64le,   vmx_vr10_ppc64le, vmx_vr11_ppc64le,
-    vmx_vr12_ppc64le,  vmx_vr13_ppc64le,  vmx_vr14_ppc64le, vmx_vr15_ppc64le,
-    vmx_vr16_ppc64le,  vmx_vr17_ppc64le,  vmx_vr18_ppc64le, vmx_vr19_ppc64le,
-    vmx_vr20_ppc64le,  vmx_vr21_ppc64le,  vmx_vr22_ppc64le, vmx_vr23_ppc64le,
-    vmx_vr24_ppc64le,  vmx_vr25_ppc64le,  vmx_vr26_ppc64le, vmx_vr27_ppc64le,
-    vmx_vr28_ppc64le,  vmx_vr29_ppc64le,  vmx_vr30_ppc64le, vmx_vr31_ppc64le,
-    vmx_vscr_ppc64le,  vmx_vrsave_ppc64le,
+    vmx_vr0_ppc64le,  vmx_vr1_ppc64le,    vmx_vr2_ppc64le,  vmx_vr3_ppc64le,
+    vmx_vr4_ppc64le,  vmx_vr5_ppc64le,    vmx_vr6_ppc64le,  vmx_vr7_ppc64le,
+    vmx_vr8_ppc64le,  vmx_vr9_ppc64le,    vmx_vr10_ppc64le, vmx_vr11_ppc64le,
+    vmx_vr12_ppc64le, vmx_vr13_ppc64le,   vmx_vr14_ppc64le, vmx_vr15_ppc64le,
+    vmx_vr16_ppc64le, vmx_vr17_ppc64le,   vmx_vr18_ppc64le, vmx_vr19_ppc64le,
+    vmx_vr20_ppc64le, vmx_vr21_ppc64le,   vmx_vr22_ppc64le, vmx_vr23_ppc64le,
+    vmx_vr24_ppc64le, vmx_vr25_ppc64le,   vmx_vr26_ppc64le, vmx_vr27_ppc64le,
+    vmx_vr28_ppc64le, vmx_vr29_ppc64le,   vmx_vr30_ppc64le, vmx_vr31_ppc64le,
+    vmx_vscr_ppc64le, vmx_vrsave_ppc64le,
 };
 
 static const uint32_t g_vsx_regnums_ppc64le[] = {
-    vsx_vs0_ppc64le,   vsx_vs1_ppc64le,   vsx_vs2_ppc64le,  vsx_vs3_ppc64le,
-    vsx_vs4_ppc64le,   vsx_vs5_ppc64le,   vsx_vs6_ppc64le,  vsx_vs7_ppc64le,
-    vsx_vs8_ppc64le,   vsx_vs9_ppc64le,   vsx_vs10_ppc64le, vsx_vs11_ppc64le,
-    vsx_vs12_ppc64le,  vsx_vs13_ppc64le,  vsx_vs14_ppc64le, vsx_vs15_ppc64le,
-    vsx_vs16_ppc64le,  vsx_vs17_ppc64le,  vsx_vs18_ppc64le, vsx_vs19_ppc64le,
-    vsx_vs20_ppc64le,  vsx_vs21_ppc64le,  vsx_vs22_ppc64le, vsx_vs23_ppc64le,
-    vsx_vs24_ppc64le,  vsx_vs25_ppc64le,  vsx_vs26_ppc64le, vsx_vs27_ppc64le,
-    vsx_vs28_ppc64le,  vsx_vs29_ppc64le,  vsx_vs30_ppc64le, vsx_vs31_ppc64le,
-    vsx_vs32_ppc64le,  vsx_vs33_ppc64le,  vsx_vs34_ppc64le, vsx_vs35_ppc64le,
-    vsx_vs36_ppc64le,  vsx_vs37_ppc64le,  vsx_vs38_ppc64le, vsx_vs39_ppc64le,
-    vsx_vs40_ppc64le,  vsx_vs41_ppc64le,  vsx_vs42_ppc64le, vsx_vs43_ppc64le,
-    vsx_vs44_ppc64le,  vsx_vs45_ppc64le,  vsx_vs46_ppc64le, vsx_vs47_ppc64le,
-    vsx_vs48_ppc64le,  vsx_vs49_ppc64le,  vsx_vs50_ppc64le, vsx_vs51_ppc64le,
-    vsx_vs52_ppc64le,  vsx_vs53_ppc64le,  vsx_vs54_ppc64le, vsx_vs55_ppc64le,
-    vsx_vs56_ppc64le,  vsx_vs57_ppc64le,  vsx_vs58_ppc64le, vsx_vs59_ppc64le,
-    vsx_vs60_ppc64le,  vsx_vs61_ppc64le,  vsx_vs62_ppc64le, vsx_vs63_ppc64le,
+    vsx_vs0_ppc64le,  vsx_vs1_ppc64le,  vsx_vs2_ppc64le,  vsx_vs3_ppc64le,
+    vsx_vs4_ppc64le,  vsx_vs5_ppc64le,  vsx_vs6_ppc64le,  vsx_vs7_ppc64le,
+    vsx_vs8_ppc64le,  vsx_vs9_ppc64le,  vsx_vs10_ppc64le, vsx_vs11_ppc64le,
+    vsx_vs12_ppc64le, vsx_vs13_ppc64le, vsx_vs14_ppc64le, vsx_vs15_ppc64le,
+    vsx_vs16_ppc64le, vsx_vs17_ppc64le, vsx_vs18_ppc64le, vsx_vs19_ppc64le,
+    vsx_vs20_ppc64le, vsx_vs21_ppc64le, vsx_vs22_ppc64le, vsx_vs23_ppc64le,
+    vsx_vs24_ppc64le, vsx_vs25_ppc64le, vsx_vs26_ppc64le, vsx_vs27_ppc64le,
+    vsx_vs28_ppc64le, vsx_vs29_ppc64le, vsx_vs30_ppc64le, vsx_vs31_ppc64le,
+    vsx_vs32_ppc64le, vsx_vs33_ppc64le, vsx_vs34_ppc64le, vsx_vs35_ppc64le,
+    vsx_vs36_ppc64le, vsx_vs37_ppc64le, vsx_vs38_ppc64le, vsx_vs39_ppc64le,
+    vsx_vs40_ppc64le, vsx_vs41_ppc64le, vsx_vs42_ppc64le, vsx_vs43_ppc64le,
+    vsx_vs44_ppc64le, vsx_vs45_ppc64le, vsx_vs46_ppc64le, vsx_vs47_ppc64le,
+    vsx_vs48_ppc64le, vsx_vs49_ppc64le, vsx_vs50_ppc64le, vsx_vs51_ppc64le,
+    vsx_vs52_ppc64le, vsx_vs53_ppc64le, vsx_vs54_ppc64le, vsx_vs55_ppc64le,
+    vsx_vs56_ppc64le, vsx_vs57_ppc64le, vsx_vs58_ppc64le, vsx_vs59_ppc64le,
+    vsx_vs60_ppc64le, vsx_vs61_ppc64le, vsx_vs62_ppc64le, vsx_vs63_ppc64le,
 };
 
 namespace {
@@ -112,23 +111,21 @@ static const RegisterSet g_reg_sets_ppc64le[k_num_register_sets] = {
      g_vsx_regnums_ppc64le},
 };
 
-NativeRegisterContextLinux *
+std::unique_ptr<NativeRegisterContextLinux>
 NativeRegisterContextLinux::CreateHostNativeRegisterContextLinux(
-    const ArchSpec &target_arch, NativeThreadProtocol &native_thread,
-    uint32_t concrete_frame_idx) {
+    const ArchSpec &target_arch, NativeThreadProtocol &native_thread) {
   switch (target_arch.GetMachine()) {
   case llvm::Triple::ppc64le:
-    return new NativeRegisterContextLinux_ppc64le(target_arch, native_thread,
-                                              concrete_frame_idx);
+    return llvm::make_unique<NativeRegisterContextLinux_ppc64le>(target_arch,
+                                                                 native_thread);
   default:
     llvm_unreachable("have no register context for architecture");
   }
 }
 
 NativeRegisterContextLinux_ppc64le::NativeRegisterContextLinux_ppc64le(
-    const ArchSpec &target_arch, NativeThreadProtocol &native_thread,
-    uint32_t concrete_frame_idx)
-    : NativeRegisterContextLinux(native_thread, concrete_frame_idx,
+    const ArchSpec &target_arch, NativeThreadProtocol &native_thread)
+    : NativeRegisterContextLinux(native_thread,
                                  new RegisterInfoPOSIX_ppc64le(target_arch)) {
   if (target_arch.GetMachine() != llvm::Triple::ppc64le) {
     llvm_unreachable("Unhandled target architecture.");
@@ -138,12 +135,7 @@ NativeRegisterContextLinux_ppc64le::NativeRegisterContextLinux_ppc64le(
   ::memset(&m_fpr_ppc64le, 0, sizeof(m_fpr_ppc64le));
   ::memset(&m_vmx_ppc64le, 0, sizeof(m_vmx_ppc64le));
   ::memset(&m_vsx_ppc64le, 0, sizeof(m_vsx_ppc64le));
-  ::memset(&m_hwp_regs,    0, sizeof(m_hwp_regs));
-
-  // 16 is just a maximum value, query hardware for actual watchpoint count
-  m_max_hwp_supported = 16;
-  m_max_hbp_supported = 16;
-  m_refresh_hwdebug_info = true;
+  ::memset(&m_hwp_regs, 0, sizeof(m_hwp_regs));
 }
 
 uint32_t NativeRegisterContextLinux_ppc64le::GetRegisterSetCount() const {
@@ -189,9 +181,9 @@ Status NativeRegisterContextLinux_ppc64le::ReadRegister(
                                 eByteOrderLittle, error);
   } else if (IsVSX(reg)) {
     uint32_t vsx_offset = CalculateVsxOffset(reg_info);
-    assert(vsx_offset < 16*64);
+    assert(vsx_offset < sizeof(m_vsx_ppc64le));
 
-    if (vsx_offset < 16*32) {
+    if (vsx_offset < sizeof(m_vsx_ppc64le) / 2) {
       error = ReadVSX();
       if (error.Fail())
         return error;
@@ -202,11 +194,11 @@ Status NativeRegisterContextLinux_ppc64le::ReadRegister(
 
       uint64_t value[2];
       uint8_t *dst, *src;
-      dst = (uint8_t *) &value;
-      src = (uint8_t *) &m_vsx_ppc64le + vsx_offset / 2;
+      dst = (uint8_t *)&value;
+      src = (uint8_t *)&m_vsx_ppc64le + vsx_offset / 2;
       ::memcpy(dst, src, 8);
       dst += 8;
-      src = (uint8_t *) &m_fpr_ppc64le + vsx_offset / 2;
+      src = (uint8_t *)&m_fpr_ppc64le + vsx_offset / 2;
       ::memcpy(dst, src, 8);
       reg_value.SetFromMemoryData(reg_info, &value, reg_info->byte_size,
                                   eByteOrderLittle, error);
@@ -216,10 +208,10 @@ Status NativeRegisterContextLinux_ppc64le::ReadRegister(
         return error;
 
       // Get pointer to m_vmx_ppc64le variable and set the data from it.
-      uint32_t vmx_offset = vsx_offset -16*32;
-      uint8_t *src = (uint8_t *) &m_vmx_ppc64le + vmx_offset;
+      uint32_t vmx_offset = vsx_offset - sizeof(m_vsx_ppc64le) / 2;
+      uint8_t *src = (uint8_t *)&m_vmx_ppc64le + vmx_offset;
       reg_value.SetFromMemoryData(reg_info, src, reg_info->byte_size,
-                                       eByteOrderLittle, error);
+                                  eByteOrderLittle, error);
     }
   } else if (IsVMX(reg)) {
     error = ReadVMX();
@@ -229,7 +221,7 @@ Status NativeRegisterContextLinux_ppc64le::ReadRegister(
     // Get pointer to m_vmx_ppc64le variable and set the data from it.
     uint32_t vmx_offset = CalculateVmxOffset(reg_info);
     assert(vmx_offset < sizeof m_vmx_ppc64le);
-    uint8_t *src = (uint8_t *) &m_vmx_ppc64le + vmx_offset;
+    uint8_t *src = (uint8_t *)&m_vmx_ppc64le + vmx_offset;
     reg_value.SetFromMemoryData(reg_info, src, reg_info->byte_size,
                                 eByteOrderLittle, error);
   } else if (IsGPR(reg)) {
@@ -241,7 +233,7 @@ Status NativeRegisterContextLinux_ppc64le::ReadRegister(
     reg_value.SetFromMemoryData(reg_info, src, reg_info->byte_size,
                                 eByteOrderLittle, error);
   } else {
-    return Status("failed - register wasn't recognized to be a GPR, FPR, VSX "\
+    return Status("failed - register wasn't recognized to be a GPR, FPR, VSX "
                   "or VMX, read strategy unknown");
   }
 
@@ -265,7 +257,7 @@ Status NativeRegisterContextLinux_ppc64le::WriteRegister(
     if (error.Fail())
       return error;
 
-    uint8_t *dst = (uint8_t *) &m_gpr_ppc64le + reg_info->byte_offset;
+    uint8_t *dst = (uint8_t *)&m_gpr_ppc64le + reg_info->byte_offset;
     ::memcpy(dst, reg_value.GetBytes(), reg_value.GetByteSize());
 
     error = WriteGPR();
@@ -283,7 +275,7 @@ Status NativeRegisterContextLinux_ppc64le::WriteRegister(
     // Get pointer to m_fpr_ppc64le variable and set the data to it.
     uint32_t fpr_offset = CalculateFprOffset(reg_info);
     assert(fpr_offset < GetFPRSize());
-    uint8_t *dst = (uint8_t *) &m_fpr_ppc64le + fpr_offset;
+    uint8_t *dst = (uint8_t *)&m_fpr_ppc64le + fpr_offset;
     ::memcpy(dst, reg_value.GetBytes(), reg_value.GetByteSize());
 
     error = WriteFPR();
@@ -300,7 +292,7 @@ Status NativeRegisterContextLinux_ppc64le::WriteRegister(
 
     // Get pointer to m_vmx_ppc64le variable and set the data to it.
     uint32_t vmx_offset = CalculateVmxOffset(reg_info);
-    assert(vmx_offset < GetVMXSize());
+    assert(vmx_offset < sizeof(m_vmx_ppc64le));
     uint8_t *dst = (uint8_t *)&m_vmx_ppc64le + vmx_offset;
     ::memcpy(dst, reg_value.GetBytes(), reg_value.GetByteSize());
 
@@ -313,9 +305,9 @@ Status NativeRegisterContextLinux_ppc64le::WriteRegister(
 
   if (IsVSX(reg_index)) {
     uint32_t vsx_offset = CalculateVsxOffset(reg_info);
-    assert(vsx_offset < 16*64);
+    assert(vsx_offset < sizeof(m_vsx_ppc64le));
 
-    if (vsx_offset < 16*32) {
+    if (vsx_offset < sizeof(m_vsx_ppc64le) / 2) {
       error = ReadVSX();
       if (error.Fail())
         return error;
@@ -327,11 +319,11 @@ Status NativeRegisterContextLinux_ppc64le::WriteRegister(
       uint64_t value[2];
       ::memcpy(value, reg_value.GetBytes(), 16);
       uint8_t *dst, *src;
-      src = (uint8_t *) value;
-      dst = (uint8_t *) &m_vsx_ppc64le + vsx_offset / 2;
+      src = (uint8_t *)value;
+      dst = (uint8_t *)&m_vsx_ppc64le + vsx_offset / 2;
       ::memcpy(dst, src, 8);
       src += 8;
-      dst = (uint8_t *) &m_fpr_ppc64le + vsx_offset / 2;
+      dst = (uint8_t *)&m_fpr_ppc64le + vsx_offset / 2;
       ::memcpy(dst, src, 8);
 
       WriteVSX();
@@ -342,8 +334,8 @@ Status NativeRegisterContextLinux_ppc64le::WriteRegister(
         return error;
 
       // Get pointer to m_vmx_ppc64le variable and set the data from it.
-      uint32_t vmx_offset = vsx_offset -16*32;
-      uint8_t *dst = (uint8_t *) &m_vmx_ppc64le + vmx_offset;
+      uint32_t vmx_offset = vsx_offset - sizeof(m_vsx_ppc64le) / 2;
+      uint8_t *dst = (uint8_t *)&m_vmx_ppc64le + vmx_offset;
       ::memcpy(dst, reg_value.GetBytes(), reg_value.GetByteSize());
       WriteVMX();
     }
@@ -351,7 +343,7 @@ Status NativeRegisterContextLinux_ppc64le::WriteRegister(
     return Status();
   }
 
-  return Status("failed - register wasn't recognized to be a GPR, FPR, VSX "\
+  return Status("failed - register wasn't recognized to be a GPR, FPR, VSX "
                 "or VMX, write strategy unknown");
 }
 
@@ -392,9 +384,9 @@ Status NativeRegisterContextLinux_ppc64le::ReadAllRegisterValues(
   dst += GetGPRSize();
   ::memcpy(dst, &m_fpr_ppc64le, GetFPRSize());
   dst += GetFPRSize();
-  ::memcpy(dst, &m_vmx_ppc64le, GetVMXSize());
-  dst += GetVMXSize();
-  ::memcpy(dst, &m_vsx_ppc64le, GetVSXSize());
+  ::memcpy(dst, &m_vmx_ppc64le, sizeof(m_vmx_ppc64le));
+  dst += sizeof(m_vmx_ppc64le);
+  ::memcpy(dst, &m_vsx_ppc64le, sizeof(m_vsx_ppc64le));
 
   return error;
 }
@@ -429,6 +421,7 @@ Status NativeRegisterContextLinux_ppc64le::WriteAllRegisterValues(
 
   ::memcpy(&m_gpr_ppc64le, src, GetGPRSize());
   error = WriteGPR();
+
   if (error.Fail())
     return error;
 
@@ -440,14 +433,14 @@ Status NativeRegisterContextLinux_ppc64le::WriteAllRegisterValues(
     return error;
 
   src += GetFPRSize();
-  ::memcpy(&m_vmx_ppc64le, src, GetVMXSize());
+  ::memcpy(&m_vmx_ppc64le, src, sizeof(m_vmx_ppc64le));
 
   error = WriteVMX();
   if (error.Fail())
     return error;
 
-  src += GetVMXSize();
-  ::memcpy(&m_vsx_ppc64le, src, GetVSXSize());
+  src += sizeof(m_vmx_ppc64le);
+  ::memcpy(&m_vsx_ppc64le, src, sizeof(m_vsx_ppc64le));
   error = WriteVSX();
 
   return error;
@@ -475,16 +468,15 @@ Status NativeRegisterContextLinux_ppc64le::DoWriteGPR(
                                            &regset, buf, buf_size);
 }
 
-Status NativeRegisterContextLinux_ppc64le::DoReadFPR(
-    void *buf, size_t buf_size) {
+Status NativeRegisterContextLinux_ppc64le::DoReadFPR(void *buf,
+                                                     size_t buf_size) {
   int regset = NT_FPREGSET;
   return NativeProcessLinux::PtraceWrapper(PTRACE_GETFPREGS, m_thread.GetID(),
                                            &regset, buf, buf_size);
-
 }
 
-Status NativeRegisterContextLinux_ppc64le::DoWriteFPR(
-    void *buf, size_t buf_size) {
+Status NativeRegisterContextLinux_ppc64le::DoWriteFPR(void *buf,
+                                                      size_t buf_size) {
   int regset = NT_FPREGSET;
   return NativeProcessLinux::PtraceWrapper(PTRACE_SETFPREGS, m_thread.GetID(),
                                            &regset, buf, buf_size);
@@ -508,71 +500,32 @@ uint32_t NativeRegisterContextLinux_ppc64le::CalculateVsxOffset(
          GetRegisterInfoAtIndex(k_first_vsx_ppc64le)->byte_offset;
 }
 
-Status NativeRegisterContextLinux_ppc64le::DoReadVMX(
-    void *buf, size_t buf_size) {
+Status NativeRegisterContextLinux_ppc64le::ReadVMX() {
   int regset = NT_PPC_VMX;
   return NativeProcessLinux::PtraceWrapper(PTRACE_GETVRREGS, m_thread.GetID(),
-                                           &regset, buf, buf_size);
-}
-
-Status NativeRegisterContextLinux_ppc64le::DoWriteVMX(
-    void *buf, size_t buf_size) {
-  int regset = NT_PPC_VMX;
-  return NativeProcessLinux::PtraceWrapper(PTRACE_SETVRREGS, m_thread.GetID(),
-                                           &regset, buf, buf_size);
-}
-
-Status NativeRegisterContextLinux_ppc64le::DoReadVSX(
-    void *buf, size_t buf_size) {
-  int regset = NT_PPC_VSX;
-  return NativeProcessLinux::PtraceWrapper(PTRACE_GETVSRREGS, m_thread.GetID(),
-                                           &regset, buf, buf_size);
-}
-
-Status NativeRegisterContextLinux_ppc64le::DoWriteVSX(
-    void *buf, size_t buf_size) {
-  int regset = NT_PPC_VSX;
-  return NativeProcessLinux::PtraceWrapper(PTRACE_SETVSRREGS, m_thread.GetID(),
-                                           &regset, buf, buf_size);
-}
-
-Status NativeRegisterContextLinux_ppc64le::ReadVMX() {
-  void *buf = GetVMXBuffer();
-  if (!buf)
-    return Status("VMX buffer is NULL");
-  size_t buf_size = GetVMXSize();
-
-  return DoReadVMX(buf, buf_size);
+                                           &regset, &m_vmx_ppc64le,
+                                           sizeof(m_vmx_ppc64le));
 }
 
 Status NativeRegisterContextLinux_ppc64le::WriteVMX() {
-  void *buf = GetVMXBuffer();
-  if (!buf)
-    return Status("VMX buffer is NULL");
-  size_t buf_size = GetVMXSize();
-
-  return DoWriteVMX(buf, buf_size);
+  int regset = NT_PPC_VMX;
+  return NativeProcessLinux::PtraceWrapper(PTRACE_SETVRREGS, m_thread.GetID(),
+                                           &regset, &m_vmx_ppc64le,
+                                           sizeof(m_vmx_ppc64le));
 }
 
 Status NativeRegisterContextLinux_ppc64le::ReadVSX() {
-  void *buf = GetVSXBuffer();
-  if (!buf)
-    return Status("VSX buffer is NULL");
-  size_t buf_size = GetVSXSize();
-
-  return DoReadVSX(buf, buf_size);
+  int regset = NT_PPC_VSX;
+  return NativeProcessLinux::PtraceWrapper(PTRACE_GETVSRREGS, m_thread.GetID(),
+                                           &regset, &m_vsx_ppc64le,
+                                           sizeof(m_vsx_ppc64le));
 }
 
 Status NativeRegisterContextLinux_ppc64le::WriteVSX() {
-  Status error;
-  uint8_t *dst = (uint8_t *) GetVSXBuffer();
-  if (!dst)
-    return Status("VSX buffer is NULL");
-
-  size_t buf_size = GetVSXSize();
-  error = DoWriteVSX(dst, buf_size);
-
-  return error;
+  int regset = NT_PPC_VSX;
+  return NativeProcessLinux::PtraceWrapper(PTRACE_SETVSRREGS, m_thread.GetID(),
+                                           &regset, &m_vsx_ppc64le,
+                                           sizeof(m_vsx_ppc64le));
 }
 
 bool NativeRegisterContextLinux_ppc64le::IsVMX(unsigned reg) {
@@ -615,15 +568,15 @@ uint32_t NativeRegisterContextLinux_ppc64le::SetHardwareWatchpoint(
   // Check if we are setting watchpoint other than read/write/access
   // Update watchpoint flag to match ppc64le write-read bit configuration.
   switch (watch_flags) {
-  case 1:
+  case eWatchpointKindWrite:
     rw_mode = PPC_BREAKPOINT_TRIGGER_WRITE;
     watch_flags = 2;
     break;
-  case 2:
+  case eWatchpointKindRead:
     rw_mode = PPC_BREAKPOINT_TRIGGER_READ;
     watch_flags = 1;
     break;
-  case 3:
+  case (eWatchpointKindRead | eWatchpointKindWrite):
     rw_mode = PPC_BREAKPOINT_TRIGGER_RW;
     break;
   default:
@@ -638,16 +591,10 @@ uint32_t NativeRegisterContextLinux_ppc64le::SetHardwareWatchpoint(
   // Below is a hack to recalculate address and size in order to
   // make sure we can watch non 8-byte alligned addresses as well.
   if (addr & 0x07) {
-    uint8_t watch_mask = (addr & 0x07) + size;
 
-    if (watch_mask > 0x08)
-      return LLDB_INVALID_INDEX32;
-    else if (watch_mask <= 0x02)
-      size = 2;
-    else if (watch_mask <= 0x04)
-      size = 4;
-    else
-      size = 8;
+    addr_t begin = llvm::alignDown(addr, 8);
+    addr_t end = llvm::alignTo(addr + size, 8);
+    size = llvm::PowerOf2Ceil(end - begin);
 
     addr = addr & (~0x07);
   }
@@ -681,7 +628,7 @@ uint32_t NativeRegisterContextLinux_ppc64le::SetHardwareWatchpoint(
 
   if (error.Fail()) {
     m_hwp_regs[wp_index].address = 0;
-    m_hwp_regs[wp_index].control &= ~1;
+    m_hwp_regs[wp_index].control &= llvm::maskTrailingZeros<uint32_t>(1);
 
     return LLDB_INVALID_INDEX32;
   }
@@ -706,10 +653,10 @@ bool NativeRegisterContextLinux_ppc64le::ClearHardwareWatchpoint(
   // Create a backup we can revert to in case of failure.
   lldb::addr_t tempAddr = m_hwp_regs[wp_index].address;
   uint32_t tempControl = m_hwp_regs[wp_index].control;
-  long * tempSlot = reinterpret_cast<long *>(m_hwp_regs[wp_index].slot);
+  long *tempSlot = reinterpret_cast<long *>(m_hwp_regs[wp_index].slot);
 
   // Update watchpoint in local cache
-  m_hwp_regs[wp_index].control &= ~1;
+  m_hwp_regs[wp_index].control &= llvm::maskTrailingZeros<uint32_t>(1);
   m_hwp_regs[wp_index].address = 0;
   m_hwp_regs[wp_index].slot = 0;
   m_hwp_regs[wp_index].mode = 0;
@@ -734,18 +681,12 @@ NativeRegisterContextLinux_ppc64le::GetWatchpointSize(uint32_t wp_index) {
   Log *log(ProcessPOSIXLog::GetLogIfAllCategoriesSet(POSIX_LOG_WATCHPOINTS));
   LLDB_LOG(log, "wp_index: {0}", wp_index);
 
-  switch ((m_hwp_regs[wp_index].control >> 5) & 0xff) {
-  case 0x01:
-    return 1;
-  case 0x03:
-    return 2;
-  case 0x0f:
-    return 4;
-  case 0xff:
-    return 8;
-  default:
-    return 0;
+  unsigned control = (m_hwp_regs[wp_index].control >> 5) & 0xff;
+  if (llvm::isPowerOf2_32(control + 1)) {
+    return llvm::countPopulation(control);
   }
+
+  return 0;
 }
 
 bool NativeRegisterContextLinux_ppc64le::WatchpointIsEnabled(
@@ -753,10 +694,7 @@ bool NativeRegisterContextLinux_ppc64le::WatchpointIsEnabled(
   Log *log(ProcessPOSIXLog::GetLogIfAllCategoriesSet(POSIX_LOG_WATCHPOINTS));
   LLDB_LOG(log, "wp_index: {0}", wp_index);
 
-  if ((m_hwp_regs[wp_index].control & 0x1) == 0x1)
-    return true;
-  else
-    return false;
+  return !!((m_hwp_regs[wp_index].control & 0x1) == 0x1);
 }
 
 Status NativeRegisterContextLinux_ppc64le::GetWatchpointHitIndex(
@@ -806,8 +744,8 @@ NativeRegisterContextLinux_ppc64le::GetWatchpointHitAddress(uint32_t wp_index) {
 
   if (WatchpointIsEnabled(wp_index))
     return m_hwp_regs[wp_index].hit_addr;
-  else
-    return LLDB_INVALID_ADDRESS;
+
+  return LLDB_INVALID_ADDRESS;
 }
 
 Status NativeRegisterContextLinux_ppc64le::ReadHardwareDebugInfo() {
@@ -820,8 +758,8 @@ Status NativeRegisterContextLinux_ppc64le::ReadHardwareDebugInfo() {
   struct ppc_debug_info hwdebug_info;
   Status error;
 
-  error = NativeProcessLinux::PtraceWrapper(PPC_PTRACE_GETHWDBGINFO,
-          tid, 0, &hwdebug_info, sizeof(hwdebug_info));
+  error = NativeProcessLinux::PtraceWrapper(
+      PPC_PTRACE_GETHWDBGINFO, tid, 0, &hwdebug_info, sizeof(hwdebug_info));
 
   if (error.Fail())
     return error;
@@ -848,7 +786,8 @@ Status NativeRegisterContextLinux_ppc64le::WriteHardwareDebugRegs() {
     reg_state.condition_value = 0;
 
     error = NativeProcessLinux::PtraceWrapper(PPC_PTRACE_SETHWDEBUG,
-            m_thread.GetID(), 0, &reg_state, sizeof(reg_state), &ret);
+                                              m_thread.GetID(), 0, &reg_state,
+                                              sizeof(reg_state), &ret);
 
     if (error.Fail())
       return error;

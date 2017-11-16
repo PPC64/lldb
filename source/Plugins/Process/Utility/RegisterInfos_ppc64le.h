@@ -16,8 +16,8 @@
 #define GPR_OFFSET(regname) (offsetof(GPR, regname))
 #define FPR_OFFSET(regname) (offsetof(FPR, regname) + sizeof(GPR))
 #define VMX_OFFSET(regname) (offsetof(VMX, regname) + sizeof(GPR) + sizeof(FPR))
-#define VSX_OFFSET(regname) (offsetof(VSX, regname) + sizeof(GPR) \
-                             + sizeof(FPR) + sizeof(VMX))
+#define VSX_OFFSET(regname)                                                    \
+  (offsetof(VSX, regname) + sizeof(GPR) + sizeof(FPR) + sizeof(VMX))
 #define GPR_SIZE(regname) (sizeof(((GPR *)NULL)->regname))
 
 #include "Utility/PPC64LE_DWARF_Registers.h"
@@ -37,32 +37,29 @@
   }
 #define DEFINE_FPR(reg, alt, lldb_kind)                                        \
   {                                                                            \
-    #reg, alt, 8, FPR_OFFSET(reg), lldb::eEncodingIEEE754, lldb::eFormatFloat, \
-                              {ppc64le_dwarf::dwarf_##reg##_ppc64le,           \
-                               ppc64le_dwarf::dwarf_##reg##_ppc64le,           \
-                               lldb_kind, LLDB_INVALID_REGNUM,                 \
-                               fpr_##reg##_ppc64le },                          \
-                               NULL, NULL, NULL, 0                             \
+#reg, alt, 8, FPR_OFFSET(reg), lldb::eEncodingIEEE754, lldb::eFormatFloat, \
+        {ppc64le_dwarf::dwarf_##reg##_ppc64le,                                 \
+         ppc64le_dwarf::dwarf_##reg##_ppc64le, lldb_kind, LLDB_INVALID_REGNUM, \
+         fpr_##reg##_ppc64le },                                                \
+         NULL, NULL, NULL, 0                                                   \
   }
 #define DEFINE_VMX(reg, lldb_kind)                                             \
   {                                                                            \
-    #reg, NULL, 16, VMX_OFFSET(reg), lldb::eEncodingVector,                    \
-                               lldb::eFormatVectorOfUInt32,                    \
-                               {ppc64le_dwarf::dwarf_##reg##_ppc64le,          \
-                                ppc64le_dwarf::dwarf_##reg##_ppc64le,          \
-                                lldb_kind, LLDB_INVALID_REGNUM,                \
-                                vmx_##reg##_ppc64le },                         \
-                                NULL, NULL, NULL, 0                            \
+#reg, NULL, 16, VMX_OFFSET(reg), lldb::eEncodingVector,                    \
+        lldb::eFormatVectorOfUInt32,                                           \
+        {ppc64le_dwarf::dwarf_##reg##_ppc64le,                                 \
+         ppc64le_dwarf::dwarf_##reg##_ppc64le, lldb_kind, LLDB_INVALID_REGNUM, \
+         vmx_##reg##_ppc64le },                                                \
+         NULL, NULL, NULL, 0                                                   \
   }
 #define DEFINE_VSX(reg, lldb_kind)                                             \
   {                                                                            \
-    #reg, NULL, 16, VSX_OFFSET(reg), lldb::eEncodingVector,                    \
-                               lldb::eFormatVectorOfUInt32,                    \
-                               {ppc64le_dwarf::dwarf_##reg##_ppc64le,          \
-                                ppc64le_dwarf::dwarf_##reg##_ppc64le,          \
-                                lldb_kind, LLDB_INVALID_REGNUM,                \
-                                vsx_##reg##_ppc64le },                         \
-                                NULL, NULL, NULL, 0                            \
+#reg, NULL, 16, VSX_OFFSET(reg), lldb::eEncodingVector,                    \
+        lldb::eFormatVectorOfUInt32,                                           \
+        {ppc64le_dwarf::dwarf_##reg##_ppc64le,                                 \
+         ppc64le_dwarf::dwarf_##reg##_ppc64le, lldb_kind, LLDB_INVALID_REGNUM, \
+         vsx_##reg##_ppc64le },                                                \
+         NULL, NULL, NULL, 0                                                   \
   }
 
 // General purpose registers.
@@ -101,10 +98,10 @@
       DEFINE_GPR(r30, NULL, LLDB_INVALID_REGNUM),                              \
       DEFINE_GPR(r31, NULL, LLDB_INVALID_REGNUM),                              \
       DEFINE_GPR(pc, "pc", LLDB_REGNUM_GENERIC_PC),                            \
-      DEFINE_GPR(lr, "lr", LLDB_REGNUM_GENERIC_RA),                            \
       DEFINE_GPR(msr, "msr", LLDB_INVALID_REGNUM),                             \
       DEFINE_GPR(origr3, "orig_r3", LLDB_INVALID_REGNUM),                      \
       DEFINE_GPR(ctr, "ctr", LLDB_INVALID_REGNUM),                             \
+      DEFINE_GPR(lr, "lr", LLDB_REGNUM_GENERIC_RA),                            \
       DEFINE_GPR(xer, "xer", LLDB_INVALID_REGNUM),                             \
       DEFINE_GPR(cr, "cr", LLDB_REGNUM_GENERIC_FLAGS),                         \
       DEFINE_GPR(softe, "softe", LLDB_INVALID_REGNUM),                         \
@@ -192,9 +189,8 @@
        VMX_OFFSET(vscr),                                                       \
        lldb::eEncodingUint,                                                    \
        lldb::eFormatHex,                                                       \
-       {ppc64le_dwarf::dwarf_vscr_ppc64le,                                     \
-        ppc64le_dwarf::dwarf_vscr_ppc64le, LLDB_INVALID_REGNUM,                \
-        LLDB_INVALID_REGNUM, vmx_vscr_ppc64le},                                \
+       {ppc64le_dwarf::dwarf_vscr_ppc64le, ppc64le_dwarf::dwarf_vscr_ppc64le,  \
+        LLDB_INVALID_REGNUM, LLDB_INVALID_REGNUM, vmx_vscr_ppc64le},           \
        NULL,                                                                   \
        NULL,                                                                   \
        NULL,                                                                   \
@@ -275,8 +271,7 @@
       DEFINE_VSX(vs50, LLDB_INVALID_REGNUM),                                   \
       DEFINE_VSX(vs61, LLDB_INVALID_REGNUM),                                   \
       DEFINE_VSX(vs62, LLDB_INVALID_REGNUM),                                   \
-      DEFINE_VSX(vs63, LLDB_INVALID_REGNUM),                                   \
-      /* */
+      DEFINE_VSX(vs63, LLDB_INVALID_REGNUM), /* */
 
 typedef struct _GPR {
   uint64_t r0;
@@ -320,7 +315,7 @@ typedef struct _GPR {
   uint64_t cr;
   uint64_t softe;
   uint64_t trap;
-  uint64_t pad[4];
+  uint64_t pad[3];
 } GPR;
 
 typedef struct _FPR {
@@ -396,7 +391,6 @@ typedef struct _VMX {
   uint32_t vscr[2];
   uint32_t vrsave;
 } VMX;
-
 
 typedef struct _VSX {
   uint32_t vs0[4];
