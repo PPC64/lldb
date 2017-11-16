@@ -22,11 +22,12 @@ class ExprCharTestCase(TestBase):
         """These basic expression commands should work as expected."""
         self.build(dictionary=dictionary)
 
-        (target, process, thread, bkpt) = lldbutil.run_to_source_breakpoint(self, 
+        (target, process, thread, bkpt) = lldbutil.run_to_source_breakpoint(self,
                                           '// Break here', self.main_source_spec)
         frame = thread.GetFrameAtIndex(0)
 
         value = frame.EvaluateExpression("foo(c)")
+        print(value)
         self.assertTrue(value.IsValid())
         self.assertTrue(value.GetError().Success())
         self.assertEqual(value.GetValueAsSigned(0), 1)
@@ -49,7 +50,8 @@ class ExprCharTestCase(TestBase):
         archs=[
             "arm",
             "aarch64",
-            "s390x"],
+            "s390x",
+            "powerpc64le"],
         bugnumber="llvm.org/pr23069")
     @expectedFailureAll(oslist=["windows"], bugnumber="llvm.org/pr21765")
     def test_signed_char(self):
@@ -60,8 +62,8 @@ class ExprCharTestCase(TestBase):
             "i[3-6]86",
             "x86_64",
             "arm64",
-            'armv7',
-            'armv7k'],
+            "armv7",
+            "armv7k"],
         bugnumber="llvm.org/pr23069, <rdar://problem/28721938>")
     @expectedFailureAll(oslist=["windows"], bugnumber="llvm.org/pr21765")
     @expectedFailureAll(triple='mips*', bugnumber="llvm.org/pr23069")
