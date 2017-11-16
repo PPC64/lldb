@@ -90,11 +90,20 @@ class EnumTypesTestCase(TestBase):
                 'ops *',
                 '$'],
             patterns=['0x0+$'])
-        self.expect(
-            'expr *f.op',
-            DATA_TYPES_DISPLAYED_CORRECTLY,
-            substrs=['error:'],
-            error=True)
+
+        # For PPC64le, NULL pointer has the value zero for all types.
+        if (self.getArchitecture() == 'powerpc64le'):
+            self.expect(
+                'expr *f.op',
+                DATA_TYPES_DISPLAYED_CORRECTLY,
+                substrs=['0'],
+                patterns=['0'])
+        else:
+            self.expect(
+                'expr *f.op',
+                DATA_TYPES_DISPLAYED_CORRECTLY,
+                substrs=['error:'],
+                error=True)
 
         bkpt = self.target().FindBreakpointByID(bkpt_id)
         for enum_value in enum_values:
