@@ -91,7 +91,8 @@ class EnumTypesTestCase(TestBase):
                 '$'],
             patterns=['0x0+$'])
 
-        # For PPC64le, NULL pointer has the value zero for all types.
+        # For PPC64le, NULL pointer has the value zero for all types:
+        # http://refspecs.linuxfoundation.org/ELF/ppc64/PPC-elf64abi.html#FUND-TYPE
         if (self.getArchitecture() == 'powerpc64le'):
             self.expect(
                 'expr *f.op',
