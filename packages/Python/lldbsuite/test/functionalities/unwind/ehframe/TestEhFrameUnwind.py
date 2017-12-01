@@ -17,7 +17,7 @@ class EHFrameBasedUnwind(TestBase):
     mydir = TestBase.compute_mydir(__file__)
 
     @skipUnlessPlatform(['linux'])
-    @skipIf(archs=["aarch64", "arm", "i386", "i686"])
+    @skipIf(archs=["aarch64", "arm", "i386", "i686", "powerpc64le"])
     def test(self):
         """Test that we can backtrace correctly from Non ABI  functions on the stack"""
         self.build()
