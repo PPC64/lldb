@@ -30,7 +30,8 @@ class TestGdbRemoteSingleStep(gdbremote_testcase.GdbRemoteTestCaseBase):
         oslist=["linux"],
         archs=[
             "arm",
-            "aarch64"],
+            "aarch64",
+            "powerpc64le"],
         bugnumber="llvm.org/pr24739")
     @skipIf(triple='^mips')
     def test_single_step_only_steps_one_instruction_with_s_llgs(self):
