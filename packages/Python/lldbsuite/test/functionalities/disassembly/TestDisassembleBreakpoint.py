@@ -54,6 +54,9 @@ class DisassemblyTestCase(TestBase):
         elif arch in ["s390x"]:
             breakpoint_opcodes = [".long"]
             instructions = [' l ', ' a ', ' st ']
+        elif arch in ["powerpc64le"]:
+            breakpoint_opcodes = [" tw", " twi", " td", " tdi"]
+            instructions = [' stw ', ' add ', ' lwz ']
         else:
             # TODO please add your arch here
             self.fail(
