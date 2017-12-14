@@ -114,7 +114,7 @@ bool ABISysV_ppc64le::PrepareTrivialCall(Thread &thread, addr_t sp,
                 (uint64_t)sp, (uint64_t)(sp & ~0xfull));
 
   sp &= ~(0xfull); // 16-byte alignment
-  sp -= 8;
+  sp -= 32;
 
   Status error;
   const RegisterInfo *pc_reg_info =
@@ -131,16 +131,18 @@ bool ABISysV_ppc64le::PrepareTrivialCall(Thread &thread, addr_t sp,
                 (uint64_t)sp, (uint64_t)return_addr);
 
   // Save return address onto the stack
-  if (!process_sp->WritePointerToMemory(sp, return_addr, error))
+  if (!process_sp->WritePointerToMemory(sp+16, return_addr, error))
     return false;
 
-  /*
-  // %lr is set to the actual stack value.
-  if (log)
-    log->Printf("Writing LR: 0x%" PRIx64, (uint64_t)return_addr);
+  // Read the current SP value
+  if (!reg_ctx->ReadRegister(sp_reg_info, reg_value))
+    return false;
 
-  if (!reg_ctx->WriteRegisterFromUnsigned(lr_reg_info, return_addr))
-    return false;*/
+  //Save current SP onto the stack
+  if (!process_sp->WritePointerToMemory(sp,
+                                        (addr_t)(reg_value.GetBytes()),
+                                        error))
+    return false;
 
   // %r1 is set to the actual stack value.
   if (log)
@@ -150,7 +152,6 @@ bool ABISysV_ppc64le::PrepareTrivialCall(Thread &thread, addr_t sp,
     return false;
 
   // %pc is set to the address of the called function.
-
   if (log)
     log->Printf("Writing IP: 0x%" PRIx64, (uint64_t)func_addr);
 
