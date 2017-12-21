@@ -114,7 +114,7 @@ bool ABISysV_ppc64le::PrepareTrivialCall(Thread &thread, addr_t sp,
                 (uint64_t)sp, (uint64_t)(sp & ~0xfull));
 
   sp &= ~(0xfull); // 16-byte alignment
-  sp -= 32;
+  sp -= 32; // allocate frame to save TOC, RA and SP.
 
   Status error;
   const RegisterInfo *pc_reg_info =
@@ -122,26 +122,56 @@ bool ABISysV_ppc64le::PrepareTrivialCall(Thread &thread, addr_t sp,
   const RegisterInfo *sp_reg_info =
       reg_ctx->GetRegisterInfo(eRegisterKindGeneric, LLDB_REGNUM_GENERIC_SP);
   ProcessSP process_sp(thread.GetProcess());
+  const RegisterInfo *lr_reg_info =
+    reg_ctx->GetRegisterInfo(eRegisterKindGeneric, LLDB_REGNUM_GENERIC_RA);
+  const RegisterInfo *r12_reg_info = reg_ctx->GetRegisterInfoAtIndex(12);
+  const RegisterInfo *r2_reg_info = reg_ctx->GetRegisterInfoAtIndex(2);
 
-  RegisterValue reg_value;
+  uint64_t reg_value;
 
   if (log)
     log->Printf("Pushing the return address onto the stack: 0x%" PRIx64
-                ": 0x%" PRIx64,
+                "(+16): 0x%" PRIx64,
                 (uint64_t)sp, (uint64_t)return_addr);
 
   // Save return address onto the stack
   if (!process_sp->WritePointerToMemory(sp+16, return_addr, error))
     return false;
 
-  // Read the current SP value
-  if (!reg_ctx->ReadRegister(sp_reg_info, reg_value))
+  if (log)
+    log->Printf("Writing LR: 0x%" PRIx64, (uint64_t)return_addr);
+  // Write the return addres to link register.
+  if (!reg_ctx->WriteRegisterFromUnsigned(lr_reg_info, return_addr))
     return false;
 
+  if (log)
+    log->Printf("Writing R12: 0x%" PRIx64, (uint64_t)func_addr);
+  // Write target address to r12 register.
+  if (!reg_ctx->WriteRegisterFromUnsigned(r12_reg_info, func_addr))
+    return false;
+
+  // Read TOC pointer value
+  reg_value = reg_ctx->ReadRegisterAsUnsigned(r2_reg_info, 0);
+
+  if (log)
+    log->Printf("Writing R2 (TOC) at SP(0x%" PRIx64 ")+24: 0x%" PRIx64,
+        (uint64_t)sp+24,
+        (uint64_t)reg_value);
+
+  // Write TOC pointer onto the stack.
+  if (!process_sp->WritePointerToMemory(sp+24, reg_value, error))
+    return false;
+
+  // Read the current SP value
+  reg_value = reg_ctx->ReadRegisterAsUnsigned(sp_reg_info, 0);
+
+  if (log)
+    log->Printf("Writing SP at SP(0x%" PRIx64 ")+0: 0x%" PRIx64,
+        (uint64_t)sp,
+        (uint64_t)reg_value);
+
   //Save current SP onto the stack
-  if (!process_sp->WritePointerToMemory(sp,
-                                        (addr_t)(reg_value.GetBytes()),
-                                        error))
+  if (!process_sp->WritePointerToMemory(sp, reg_value, error))
     return false;
 
   // %r1 is set to the actual stack value.
