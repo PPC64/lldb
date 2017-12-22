@@ -79,9 +79,7 @@ class AnonymousTestCase(TestBase):
         # This fails on Linux with an upstream error "Couldn't dematerialize struct", as does "p *n" with "int *n = 0".
         # Note that this can also trigger llvm.org/pr15036 when run
         # interactively at the lldb command prompt.
-        # This doesn't fail on PPC64le because null pointers are treated as 0
-        if(self.getArchitecture() != 'powerpc64le'):
-            self.expect("expression *(type_z *)pz", error=True)
+        self.expect("expression *(type_z *)pz", error=True)
 
     def test_child_by_name(self):
         self.build()
