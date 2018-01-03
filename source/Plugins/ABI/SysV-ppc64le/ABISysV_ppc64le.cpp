@@ -1,4 +1,4 @@
-//===-- ABISysV_ppc64le.cpp ---------------------------------------*- C++ -*-===//
+//===-- ABISysV_ppc64le.cpp -------------------------------------*- C++ -*-===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -42,9 +42,8 @@
 using namespace lldb;
 using namespace lldb_private;
 
-
-static const uint32_t k_num_register_infos =
-    llvm::array_lengthof(g_register_infos_ppc64le);
+static const uint32_t k_num_register_infos = llvm::array_lengthof(
+    g_register_infos_ppc64le);
 
 const lldb_private::RegisterInfo *
 ABISysV_ppc64le::GetRegisterInfoArray(uint32_t &count) {
@@ -52,39 +51,44 @@ ABISysV_ppc64le::GetRegisterInfoArray(uint32_t &count) {
   return g_register_infos_ppc64le;
 }
 
-size_t ABISysV_ppc64le::GetRedZoneSize() const { return 224; }
+size_t ABISysV_ppc64le::GetRedZoneSize() const {
+  return 224;
+}
 
 //------------------------------------------------------------------
 // Static Functions
 //------------------------------------------------------------------
 
-ABISP
-ABISysV_ppc64le::CreateInstance(lldb::ProcessSP process_sp, const ArchSpec &arch) {
+ABISP ABISysV_ppc64le::CreateInstance(lldb::ProcessSP process_sp,
+    const ArchSpec &arch) {
   static ABISP g_abi_sp;
+
   if (arch.GetTriple().getArch() == llvm::Triple::ppc64le) {
     if (!g_abi_sp)
       g_abi_sp.reset(new ABISysV_ppc64le(process_sp));
     return g_abi_sp;
   }
+
   return ABISP();
 }
 
 bool ABISysV_ppc64le::PrepareTrivialCall(Thread &thread, addr_t sp,
-                                       addr_t func_addr, addr_t return_addr,
-                                       llvm::ArrayRef<addr_t> args) const {
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_EXPRESSIONS));
+    addr_t func_addr, addr_t return_addr, llvm::ArrayRef<addr_t> args) const {
+  Log *log(lldb_private::GetLogIfAllCategoriesSet (LIBLLDB_LOG_EXPRESSIONS));
 
   if (log) {
     StreamString s;
+
     s.Printf("ABISysV_ppc64le::PrepareTrivialCall (tid = 0x%" PRIx64
-             ", sp = 0x%" PRIx64 ", func_addr = 0x%" PRIx64
-             ", return_addr = 0x%" PRIx64,
-             thread.GetID(), (uint64_t)sp, (uint64_t)func_addr,
-             (uint64_t)return_addr);
+        ", sp = 0x%" PRIx64 ", func_addr = 0x%" PRIx64
+        ", return_addr = 0x%" PRIx64,
+        thread.GetID(), (uint64_t)sp, (uint64_t)func_addr,
+        (uint64_t)return_addr);
 
     for (size_t i = 0; i < args.size(); ++i)
       s.Printf(", arg%" PRIu64 " = 0x%" PRIx64, static_cast<uint64_t>(i + 1),
-               args[i]);
+          args[i]);
+
     s.PutCString(")");
     log->PutString(s.GetString());
   }
@@ -95,52 +99,79 @@ bool ABISysV_ppc64le::PrepareTrivialCall(Thread &thread, addr_t sp,
 
   const RegisterInfo *reg_info = nullptr;
 
-  if (args.size() > 8) // TODO handle more than 8 arguments
+  if (args.size() > 8) // TODO handle more than 8 arguments.
     return false;
 
   for (size_t i = 0; i < args.size(); ++i) {
     reg_info = reg_ctx->GetRegisterInfo(eRegisterKindGeneric,
-                                        LLDB_REGNUM_GENERIC_ARG1 + i);
+        LLDB_REGNUM_GENERIC_ARG1 + i);
+
     if (log)
-      log->Printf("About to write arg%" PRIu64 " (0x%" PRIx64 ") into %s",
-                  static_cast<uint64_t>(i + 1), args[i], reg_info->name);
+    log->Printf("About to write arg%" PRIu64 " (0x%" PRIx64 ") into %s",
+        static_cast<uint64_t>(i + 1), args[i], reg_info->name);
+
     if (!reg_ctx->WriteRegisterFromUnsigned(reg_info, args[i]))
       return false;
   }
 
-  // First, align the SP
+  // First, align the SP.
   if (log)
     log->Printf("16-byte aligning SP: 0x%" PRIx64 " to 0x%" PRIx64,
-                (uint64_t)sp, (uint64_t)(sp & ~0xfull));
+        (uint64_t)sp, (uint64_t)(sp & ~0xfull));
 
-  sp &= ~(0xfull); // 16-byte alignment
-  sp -= 8;
+  sp &= ~(0xfull); // 16-byte alignment.
+  sp -= 32; // allocate frame to save TOC, RA and SP.
 
   Status error;
+  uint64_t reg_value;
   const RegisterInfo *pc_reg_info =
       reg_ctx->GetRegisterInfo(eRegisterKindGeneric, LLDB_REGNUM_GENERIC_PC);
   const RegisterInfo *sp_reg_info =
       reg_ctx->GetRegisterInfo(eRegisterKindGeneric, LLDB_REGNUM_GENERIC_SP);
   ProcessSP process_sp(thread.GetProcess());
+  const RegisterInfo *lr_reg_info =
+      reg_ctx->GetRegisterInfo(eRegisterKindGeneric, LLDB_REGNUM_GENERIC_RA);
+  const RegisterInfo *r2_reg_info = reg_ctx->GetRegisterInfoAtIndex(2);
+  const RegisterInfo *r12_reg_info = reg_ctx->GetRegisterInfoAtIndex(12);
 
-  RegisterValue reg_value;
-
+  // Save return address onto the stack.
   if (log)
     log->Printf("Pushing the return address onto the stack: 0x%" PRIx64
-                ": 0x%" PRIx64,
-                (uint64_t)sp, (uint64_t)return_addr);
-
-  // Save return address onto the stack
-  if (!process_sp->WritePointerToMemory(sp, return_addr, error))
+        "(+16): 0x%" PRIx64, (uint64_t)sp, (uint64_t)return_addr);
+  if (!process_sp->WritePointerToMemory(sp + 16, return_addr, error))
     return false;
 
-  /*
-  // %lr is set to the actual stack value.
+  // Write the return address to link register.
   if (log)
     log->Printf("Writing LR: 0x%" PRIx64, (uint64_t)return_addr);
-
   if (!reg_ctx->WriteRegisterFromUnsigned(lr_reg_info, return_addr))
-    return false;*/
+    return false;
+
+  // Write target address to r12 register.
+  if (log)
+    log->Printf("Writing R12: 0x%" PRIx64, (uint64_t)func_addr);
+  if (!reg_ctx->WriteRegisterFromUnsigned(r12_reg_info, func_addr))
+    return false;
+
+  // Read TOC pointer value.
+  reg_value = reg_ctx->ReadRegisterAsUnsigned(r2_reg_info, 0);
+
+  // Write TOC pointer onto the stack.
+  if (log)
+    log->Printf("Writing R2 (TOC) at SP(0x%" PRIx64 ")+24: 0x%" PRIx64,
+      (uint64_t)sp+24, (uint64_t)reg_value);
+  if (!process_sp->WritePointerToMemory(sp + 24, reg_value, error))
+    return false;
+
+  // Read the current SP value.
+  reg_value = reg_ctx->ReadRegisterAsUnsigned(sp_reg_info, 0);
+
+  // Save current SP onto the stack.
+  if (log)
+    log->Printf("Writing SP at SP(0x%" PRIx64 ")+0: 0x%" PRIx64,
+      (uint64_t)sp, (uint64_t)reg_value);
+  if (!process_sp->WritePointerToMemory(sp, reg_value, error))
+    return false;
 
   // %r1 is set to the actual stack value.
   if (log)
@@ -150,10 +181,8 @@ bool ABISysV_ppc64le::PrepareTrivialCall(Thread &thread, addr_t sp,
     return false;
 
   // %pc is set to the address of the called function.
-
   if (log)
     log->Printf("Writing IP: 0x%" PRIx64, (uint64_t)func_addr);
-
   if (!reg_ctx->WriteRegisterFromUnsigned(pc_reg_info, func_addr))
     return false;
 
@@ -161,82 +190,60 @@ bool ABISysV_ppc64le::PrepareTrivialCall(Thread &thread, addr_t sp,
 }
 
 static bool ReadIntegerArgument(Scalar &scalar, unsigned int bit_width,
-                                bool is_signed, Thread &thread,
-                                uint32_t *argument_register_ids,
-                                unsigned int &current_argument_register,
-                                addr_t &current_stack_argument) {
+    bool is_signed, Thread &thread, uint32_t *argument_register_ids,
+    unsigned int &current_argument_register, addr_t &current_stack_argument) {
   if (bit_width > 64)
-    return false; // Scalar can't hold large integer arguments
+    return false; // Scalar can't hold large integer arguments.
 
   if (current_argument_register < 6) {
     scalar = thread.GetRegisterContext()->ReadRegisterAsUnsigned(
         argument_register_ids[current_argument_register], 0);
     current_argument_register++;
+
     if (is_signed)
       scalar.SignExtend(bit_width);
   } else {
     uint32_t byte_size = (bit_width + (8 - 1)) / 8;
     Status error;
-    if (thread.GetProcess()->ReadScalarIntegerFromMemory(
-            current_stack_argument, byte_size, is_signed, scalar, error)) {
+
+    if (thread.GetProcess()->ReadScalarIntegerFromMemory(current_stack_argument,
+        byte_size, is_signed, scalar, error)) {
       current_stack_argument += byte_size;
       return true;
     }
+
     return false;
   }
+
   return true;
 }
 
-bool ABISysV_ppc64le::GetArgumentValues(Thread &thread, ValueList &values) const {
+bool ABISysV_ppc64le::GetArgumentValues(Thread &thread,
+    ValueList &values) const {
   unsigned int num_values = values.GetSize();
   unsigned int value_index;
 
-  // Extract the register context so we can read arguments from registers
-
+  // Extract the register context so we can read arguments from registers.
   RegisterContext *reg_ctx = thread.GetRegisterContext().get();
-
   if (!reg_ctx)
     return false;
 
   // Get the pointer to the first stack argument so we have a place to start
-  // when reading data
-
+  // when reading data.
   addr_t sp = reg_ctx->GetSP(0);
 
   if (!sp)
     return false;
 
-  addr_t current_stack_argument = sp + 48; // jump over return address
-
+  addr_t current_stack_argument = sp + 48; // jump over return address.
   uint32_t argument_register_ids[8];
 
-  argument_register_ids[0] =
-      reg_ctx->GetRegisterInfo(eRegisterKindGeneric, LLDB_REGNUM_GENERIC_ARG1)
-          ->kinds[eRegisterKindLLDB];
-  argument_register_ids[1] =
-      reg_ctx->GetRegisterInfo(eRegisterKindGeneric, LLDB_REGNUM_GENERIC_ARG2)
-          ->kinds[eRegisterKindLLDB];
-  argument_register_ids[2] =
-      reg_ctx->GetRegisterInfo(eRegisterKindGeneric, LLDB_REGNUM_GENERIC_ARG3)
-          ->kinds[eRegisterKindLLDB];
-  argument_register_ids[3] =
-      reg_ctx->GetRegisterInfo(eRegisterKindGeneric, LLDB_REGNUM_GENERIC_ARG4)
-          ->kinds[eRegisterKindLLDB];
-  argument_register_ids[4] =
-      reg_ctx->GetRegisterInfo(eRegisterKindGeneric, LLDB_REGNUM_GENERIC_ARG5)
-          ->kinds[eRegisterKindLLDB];
-  argument_register_ids[5] =
-      reg_ctx->GetRegisterInfo(eRegisterKindGeneric, LLDB_REGNUM_GENERIC_ARG6)
-          ->kinds[eRegisterKindLLDB];
-  argument_register_ids[6] =
-      reg_ctx->GetRegisterInfo(eRegisterKindGeneric, LLDB_REGNUM_GENERIC_ARG7)
-          ->kinds[eRegisterKindLLDB];
-  argument_register_ids[7] =
-      reg_ctx->GetRegisterInfo(eRegisterKindGeneric, LLDB_REGNUM_GENERIC_ARG8)
-          ->kinds[eRegisterKindLLDB];
+  for (size_t i = 0; i < 8; ++i) {
+    argument_register_ids[i] = reg_ctx->GetRegisterInfo(eRegisterKindGeneric,
+        LLDB_REGNUM_GENERIC_ARG1 + i)->kinds[eRegisterKindLLDB];
+  }
 
   unsigned int current_argument_register = 0;
-
   for (value_index = 0; value_index < num_values; ++value_index) {
     Value *value = values.GetValueAtIndex(value_index);
 
@@ -252,12 +259,12 @@ bool ABISysV_ppc64le::GetArgumentValues(Thread &thread, ValueList &values) const
 
     if (compiler_type.IsIntegerOrEnumerationType(is_signed)) {
       ReadIntegerArgument(value->GetScalar(), compiler_type.GetBitSize(&thread),
-                          is_signed, thread, argument_register_ids,
-                          current_argument_register, current_stack_argument);
+          is_signed, thread, argument_register_ids, current_argument_register,
+          current_stack_argument);
     } else if (compiler_type.IsPointerType()) {
       ReadIntegerArgument(value->GetScalar(), compiler_type.GetBitSize(&thread),
-                          false, thread, argument_register_ids,
-                          current_argument_register, current_stack_argument);
+          false, thread, argument_register_ids, current_argument_register,
+          current_stack_argument);
     }
   }
 
@@ -265,7 +272,7 @@ bool ABISysV_ppc64le::GetArgumentValues(Thread &thread, ValueList &values) const
 }
 
 Status ABISysV_ppc64le::SetReturnValueObject(lldb::StackFrameSP &frame_sp,
-                                           lldb::ValueObjectSP &new_value_sp) {
+    lldb::ValueObjectSP &new_value_sp) {
   Status error;
   if (!new_value_sp) {
     error.SetErrorString("Empty value object for return value.");
@@ -278,17 +285,15 @@ Status ABISysV_ppc64le::SetReturnValueObject(lldb::StackFrameSP &frame_sp,
     return error;
   }
 
-  Thread *thread = frame_sp->GetThread().get();
-
   bool is_signed;
   uint32_t count;
   bool is_complex;
-
+  Thread *thread = frame_sp->GetThread().get();
   RegisterContext *reg_ctx = thread->GetRegisterContext().get();
 
   bool set_it_simple = false;
-  if (compiler_type.IsIntegerOrEnumerationType(is_signed) ||
-      compiler_type.IsPointerType()) {
+  if (compiler_type.IsIntegerOrEnumerationType(is_signed)
+      || compiler_type.IsPointerType()) {
     const RegisterInfo *reg_info = reg_ctx->GetRegisterInfoByName("r3", 0);
 
     DataExtractor data;
@@ -308,7 +313,7 @@ Status ABISysV_ppc64le::SetReturnValueObject(lldb::StackFrameSP &frame_sp,
         set_it_simple = true;
     } else {
       error.SetErrorString("We don't support returning longer than 64 bit "
-                           "integer values at present.");
+          "integer values at present.");
     }
   } else if (compiler_type.IsFloatingPointType(count, is_complex)) {
     if (is_complex)
@@ -345,14 +350,14 @@ Status ABISysV_ppc64le::SetReturnValueObject(lldb::StackFrameSP &frame_sp,
     // register.
     // We should figure out where it really goes, but we don't support this yet.
     error.SetErrorString("We only support setting simple integer and float "
-                         "return types at present.");
+        "return types at present.");
   }
 
   return error;
 }
 
-ValueObjectSP ABISysV_ppc64le::GetReturnValueObjectSimple(
-    Thread &thread, CompilerType &return_compiler_type) const {
+ValueObjectSP ABISysV_ppc64le::GetReturnValueObjectSimple(Thread &thread,
+    CompilerType &return_compiler_type) const {
   ValueObjectSP return_valobj_sp;
   Value value;
 
@@ -426,10 +431,10 @@ ValueObjectSP ABISysV_ppc64le::GetReturnValueObjectSimple(
             if (f1_value.GetData(data)) {
               lldb::offset_t offset = 0;
               if (byte_size == sizeof(float)) {
-                value.GetScalar() = (float)data.GetFloat(&offset);
+                value.GetScalar() = (float) data.GetFloat(&offset);
                 success = true;
               } else if (byte_size == sizeof(double)) {
-                value.GetScalar() = (double)data.GetDouble(&offset);
+                value.GetScalar() = (double) data.GetDouble(&offset);
                 success = true;
               }
             }
@@ -445,33 +450,34 @@ ValueObjectSP ABISysV_ppc64le::GetReturnValueObjectSimple(
     unsigned r3_id =
         reg_ctx->GetRegisterInfoByName("r3", 0)->kinds[eRegisterKindLLDB];
     value.GetScalar() =
-        (uint64_t)thread.GetRegisterContext()->ReadRegisterAsUnsigned(r3_id, 0);
+        (uint64_t) thread.GetRegisterContext()->ReadRegisterAsUnsigned(r3_id,
+            0);
     value.SetValueType(Value::eValueTypeScalar);
     return_valobj_sp = ValueObjectConstResult::Create(
         thread.GetStackFrameAtIndex(0).get(), value, ConstString(""));
   } else if (type_flags & eTypeIsVector) {
     const size_t byte_size = return_compiler_type.GetByteSize(nullptr);
     if (byte_size > 0) {
-      const RegisterInfo *altivec_reg = reg_ctx->GetRegisterInfoByName("vr2", 0);
+      const RegisterInfo *altivec_reg = reg_ctx->GetRegisterInfoByName("v2",
+          0);
       if (altivec_reg) {
         if (byte_size <= altivec_reg->byte_size) {
           ProcessSP process_sp(thread.GetProcess());
           if (process_sp) {
-            std::unique_ptr<DataBufferHeap> heap_data_ap(
-                new DataBufferHeap(byte_size, 0));
+            std::unique_ptr < DataBufferHeap
+                > heap_data_ap(new DataBufferHeap(byte_size, 0));
             const ByteOrder byte_order = process_sp->GetByteOrder();
             RegisterValue reg_value;
             if (reg_ctx->ReadRegister(altivec_reg, reg_value)) {
               Status error;
-              if (reg_value.GetAsMemoryData(
-                      altivec_reg, heap_data_ap->GetBytes(),
-                      heap_data_ap->GetByteSize(), byte_order, error)) {
+              if (reg_value.GetAsMemoryData(altivec_reg,
+                  heap_data_ap->GetBytes(), heap_data_ap->GetByteSize(),
+                  byte_order, error)) {
                 DataExtractor data(DataBufferSP(heap_data_ap.release()),
-                                   byte_order, process_sp->GetTarget()
-                                                   .GetArchitecture()
-                                                   .GetAddressByteSize());
-                return_valobj_sp = ValueObjectConstResult::Create(
-                    &thread, return_compiler_type, ConstString(""), data);
+                    byte_order,
+                    process_sp->GetTarget().GetArchitecture().GetAddressByteSize());
+                return_valobj_sp = ValueObjectConstResult::Create(&thread,
+                    return_compiler_type, ConstString(""), data);
               }
             }
           }
@@ -483,8 +489,8 @@ ValueObjectSP ABISysV_ppc64le::GetReturnValueObjectSimple(
   return return_valobj_sp;
 }
 
-ValueObjectSP ABISysV_ppc64le::GetReturnValueObjectImpl(
-    Thread &thread, CompilerType &return_compiler_type) const {
+ValueObjectSP ABISysV_ppc64le::GetReturnValueObjectImpl(Thread &thread,
+    CompilerType &return_compiler_type) const {
   return GetReturnValueObjectSimple(thread, return_compiler_type);
 }
 
@@ -498,15 +504,14 @@ bool ABISysV_ppc64le::CreateFunctionEntryUnwindPlan(UnwindPlan &unwind_plan) {
 
   UnwindPlan::RowSP row(new UnwindPlan::Row);
 
-  // Our Call Frame Address is the stack pointer value
+  // Our Call Frame Address is the stack pointer value.
   row->GetCFAValue().SetIsRegisterPlusOffset(sp_reg_num, 0);
 
-  // The previous PC is in the LR
+  // The previous PC is in the LR.
   row->SetRegisterLocationToRegister(pc_reg_num, lr_reg_num, true);
   unwind_plan.AppendRow(row);
 
   // All other registers are the same.
-
   unwind_plan.SetSourceName("ppc64le at-func-entry default");
   unwind_plan.SetSourcedFromCompiler(eLazyBoolNo);
 
@@ -519,21 +524,21 @@ bool ABISysV_ppc64le::CreateDefaultUnwindPlan(UnwindPlan &unwind_plan) {
 
   uint32_t sp_reg_num = ppc64le_dwarf::dwarf_r1_ppc64le;
   uint32_t pc_reg_num = ppc64le_dwarf::dwarf_lr_ppc64le;
-
   UnwindPlan::RowSP row(new UnwindPlan::Row);
-
   const int32_t ptr_size = 8;
-  row->GetCFAValue().SetIsRegisterDereferenced(sp_reg_num);
 
+  row->GetCFAValue().SetIsRegisterDereferenced(sp_reg_num);
   row->SetRegisterLocationToAtCFAPlusOffset(pc_reg_num, ptr_size * 2, true);
   row->SetRegisterLocationToIsCFAPlusOffset(sp_reg_num, 0, true);
-  row->SetRegisterLocationToAtCFAPlusOffset(ppc64le_dwarf::dwarf_cr_ppc64le, ptr_size, true);
+  row->SetRegisterLocationToAtCFAPlusOffset(ppc64le_dwarf::dwarf_cr_ppc64le,
+      ptr_size, true);
 
   unwind_plan.AppendRow(row);
   unwind_plan.SetSourceName("ppc64le default unwind plan");
   unwind_plan.SetSourcedFromCompiler(eLazyBoolNo);
   unwind_plan.SetUnwindPlanValidAtAllInstructions(eLazyBoolNo);
   unwind_plan.SetReturnAddressRegister(ppc64le_dwarf::dwarf_lr_ppc64le);
+
   return true;
 }
 
@@ -544,9 +549,8 @@ bool ABISysV_ppc64le::RegisterIsVolatile(const RegisterInfo *reg_info) {
 // See "Register Usage" in the
 // "System V Application Binary Interface"
 // "64-bit PowerPC ELF Application Binary Interface Supplement"
-// current version is 1.9 released 2004 at
-// http://refspecs.linuxfoundation.org/ELF/ppc64/PPC-elf64abi-1.9.pdf
-
+// current version is 2 released 2015 at
+// https://members.openpowerfoundation.org/document/dl/576
 bool ABISysV_ppc64le::RegisterIsCalleeSaved(const RegisterInfo *reg_info) {
   if (reg_info) {
     // Preserved registers are :
@@ -586,12 +590,12 @@ bool ABISysV_ppc64le::RegisterIsCalleeSaved(const RegisterInfo *reg_info) {
 }
 
 void ABISysV_ppc64le::Initialize() {
-  PluginManager::RegisterPlugin(
-      GetPluginNameStatic(), "System V ABI for ppc64le targets", CreateInstance);
+  PluginManager::RegisterPlugin(GetPluginNameStatic(),
+      "System V ABI for ppc64le targets", CreateInstance);
 }
 
 void ABISysV_ppc64le::Terminate() {
-  PluginManager::UnregisterPlugin(CreateInstance);
+  PluginManager::UnregisterPlugin (CreateInstance);
 }
 
 lldb_private::ConstString ABISysV_ppc64le::GetPluginNameStatic() {
@@ -607,4 +611,6 @@ lldb_private::ConstString ABISysV_ppc64le::GetPluginName() {
   return GetPluginNameStatic();
 }
 
-uint32_t ABISysV_ppc64le::GetPluginVersion() { return 1; }
+uint32_t ABISysV_ppc64le::GetPluginVersion() {
+  return 1;
+}
