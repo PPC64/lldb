@@ -125,6 +125,8 @@ class TestGdbRemoteExpeditedRegisters(
         self.set_inferior_startup_launch()
         self.stop_notification_contains_pc_register()
 
+    # On PPC64le, the FP is not found because it is the SP
+    @expectedFailureAll(archs=['powerpc64'])
     def stop_notification_contains_fp_register(self):
         self.stop_notification_contains_generic_register("fp")
 
