@@ -105,7 +105,7 @@ class LoadUnloadTestCase(TestBase):
         old_dylib = os.path.join(os.getcwd(), dylibName)
         new_dylib = os.path.join(new_dir, dylibName)
 
-        exe = os.path.join(os.getcwd(), "a.out")
+        exe = self.getBuildArtifact("a.out")
         self.runCmd("file " + exe, CURRENT_EXECUTABLE_SET)
 
         self.expect("target modules list",
@@ -156,7 +156,7 @@ class LoadUnloadTestCase(TestBase):
         self.build()
         self.copy_shlibs_to_remote(hidden_dir=True)
 
-        exe = os.path.join(os.getcwd(), "a.out")
+        exe = self.getBuildArtifact("a.out")
         self.runCmd("file " + exe, CURRENT_EXECUTABLE_SET)
 
         # Shut off ANSI color usage so we don't get ANSI escape sequences
@@ -222,7 +222,7 @@ class LoadUnloadTestCase(TestBase):
         self.build()
         self.copy_shlibs_to_remote()
 
-        exe = os.path.join(os.getcwd(), "a.out")
+        exe = self.getBuildArtifact("a.out")
         self.runCmd("file " + exe, CURRENT_EXECUTABLE_SET)
 
         # Break at main.cpp before the call to dlopen().
@@ -300,7 +300,7 @@ class LoadUnloadTestCase(TestBase):
         self.build()
         self.copy_shlibs_to_remote()
 
-        exe = os.path.join(os.getcwd(), "a.out")
+        exe = self.getBuildArtifact("a.out")
         self.runCmd("file " + exe, CURRENT_EXECUTABLE_SET)
 
         # Break by function name a_function (not yet loaded).
@@ -343,7 +343,7 @@ class LoadUnloadTestCase(TestBase):
         self.build()
         self.copy_shlibs_to_remote()
 
-        exe = os.path.join(os.getcwd(), "a.out")
+        exe = self.getBuildArtifact("a.out")
         self.runCmd("file " + exe, CURRENT_EXECUTABLE_SET)
 
         # Break by function name a_function (not yet loaded).
@@ -368,14 +368,13 @@ class LoadUnloadTestCase(TestBase):
 
     @skipIfFreeBSD  # llvm.org/pr14424 - missing FreeBSD Makefiles/testcase support
     @skipIfWindows  # Windows doesn't have dlopen and friends, dynamic libraries work differently
-    @unittest2.expectedFailure("llvm.org/pr25806")
     def test_static_init_during_load(self):
         """Test that we can set breakpoints correctly in static initializers"""
 
         self.build()
         self.copy_shlibs_to_remote()
 
-        exe = os.path.join(os.getcwd(), "a.out")
+        exe = self.getBuildArtifact("a.out")
         self.runCmd("file " + exe, CURRENT_EXECUTABLE_SET)
 
         a_init_bp_num = lldbutil.run_break_set_by_symbol(
@@ -395,19 +394,19 @@ class LoadUnloadTestCase(TestBase):
         self.runCmd("continue")
         self.expect("thread list", STOPPED_DUE_TO_BREAKPOINT,
                     substrs=['stopped',
-                             'a_init',
-                             'stop reason = breakpoint %d' % a_init_bp_num])
+                             'b_init',
+                             'stop reason = breakpoint %d' % b_init_bp_num])
         self.expect("thread backtrace",
-                    substrs=['a_init',
+                    substrs=['b_init',
                              'dlopen',
                              'main'])
 
         self.runCmd("continue")
         self.expect("thread list", STOPPED_DUE_TO_BREAKPOINT,
                     substrs=['stopped',
-                             'b_init',
-                             'stop reason = breakpoint %d' % b_init_bp_num])
+                             'a_init',
+                             'stop reason = breakpoint %d' % a_init_bp_num])
         self.expect("thread backtrace",
-                    substrs=['b_init',
+                    substrs=['a_init',
                              'dlopen',
                              'main'])
