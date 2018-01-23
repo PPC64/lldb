@@ -23,6 +23,7 @@
 #include "lldb/Core/ValueObjectConstResult.h"
 #include "lldb/Core/ValueObjectMemory.h"
 #include "lldb/Core/ValueObjectRegister.h"
+#include "lldb/Symbol/ClangASTContext.h"
 #include "lldb/Symbol/UnwindPlan.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/RegisterContext.h"
@@ -35,6 +36,10 @@
 #include "lldb/Utility/Status.h"
 #include "Utility/PPC64_DWARF_Registers.h"
 #include "Utility/PPC64LE_DWARF_Registers.h"
+
+#include "clang/AST/ASTContext.h"
+#include "clang/AST/Attr.h"
+#include "clang/AST/Decl.h"
 
 #define DECLARE_REGISTER_INFOS_PPC64_STRUCT
 #include "Plugins/Process/Utility/RegisterInfos_ppc64.h"
@@ -71,12 +76,9 @@ lldb::ByteOrder ABISysV_ppc64::GetByteOrder() const {
 
 ABISP
 ABISysV_ppc64::CreateInstance(lldb::ProcessSP process_sp, const ArchSpec &arch) {
-  static ABISP g_abi_sp;
   if (arch.GetTriple().getArch() == llvm::Triple::ppc64 ||
       arch.GetTriple().getArch() == llvm::Triple::ppc64le) {
-    if (!g_abi_sp)
-      g_abi_sp.reset(new ABISysV_ppc64(process_sp));
-    return g_abi_sp;
+      return ABISP(new ABISysV_ppc64(process_sp));
   }
   return ABISP();
 }
@@ -382,138 +384,622 @@ Status ABISysV_ppc64::SetReturnValueObject(lldb::StackFrameSP &frame_sp,
   return error;
 }
 
-ValueObjectSP ABISysV_ppc64::GetReturnValueObjectSimple(
-    Thread &thread, CompilerType &return_compiler_type) const {
-  ValueObjectSP return_valobj_sp;
-  Value value;
+//
+// ReturnValueExtractor
+//
 
-  if (!return_compiler_type)
-    return return_valobj_sp;
+namespace {
 
-  // value.SetContext (Value::eContextTypeClangType, return_value_type);
-  value.SetCompilerType(return_compiler_type);
+#define LOG_PREFIX "ReturnValueExtractor: "
 
-  RegisterContext *reg_ctx = thread.GetRegisterContext().get();
-  if (!reg_ctx)
-    return return_valobj_sp;
+#define LOG(...) \
+  m_logger.LogMsg(LOG_PREFIX __VA_ARGS__)
 
-  const uint32_t type_flags = return_compiler_type.GetTypeInfo();
-  if (type_flags & eTypeIsScalar) {
-    value.SetValueType(Value::eValueTypeScalar);
+class ReturnValueExtractor {
+  // Log wrapper
+  class Logger {
+  public:
+    Logger() :
+      m_log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_EXPRESSIONS))
+    {}
 
-    bool success = false;
-    if (type_flags & eTypeIsInteger) {
-      // Extract the register context so we can read arguments from registers
+    // send a message to the logger
+    void LogMsg(const char *fmt, ...) const {
+      if (m_log) {
+        StreamString s;
 
-      const size_t byte_size = return_compiler_type.GetByteSize(nullptr);
-      uint64_t raw_value = thread.GetRegisterContext()->ReadRegisterAsUnsigned(
-          reg_ctx->GetRegisterInfoByName("r3", 0), 0);
-      const bool is_signed = (type_flags & eTypeIsSigned) != 0;
-      switch (byte_size) {
-      default:
-        break;
-
-      case sizeof(uint64_t):
-        if (is_signed)
-          value.GetScalar() = (int64_t)(raw_value);
-        else
-          value.GetScalar() = (uint64_t)(raw_value);
-        success = true;
-        break;
-
-      case sizeof(uint32_t):
-        if (is_signed)
-          value.GetScalar() = (int32_t)(raw_value & UINT32_MAX);
-        else
-          value.GetScalar() = (uint32_t)(raw_value & UINT32_MAX);
-        success = true;
-        break;
-
-      case sizeof(uint16_t):
-        if (is_signed)
-          value.GetScalar() = (int16_t)(raw_value & UINT16_MAX);
-        else
-          value.GetScalar() = (uint16_t)(raw_value & UINT16_MAX);
-        success = true;
-        break;
-
-      case sizeof(uint8_t):
-        if (is_signed)
-          value.GetScalar() = (int8_t)(raw_value & UINT8_MAX);
-        else
-          value.GetScalar() = (uint8_t)(raw_value & UINT8_MAX);
-        success = true;
-        break;
-      }
-    } else if (type_flags & eTypeIsFloat) {
-      if (type_flags & eTypeIsComplex) {
-        // Don't handle complex yet.
-      } else {
-        const size_t byte_size = return_compiler_type.GetByteSize(nullptr);
-        if (byte_size <= sizeof(long double)) {
-          const RegisterInfo *f1_info = reg_ctx->GetRegisterInfoByName("f1", 0);
-          RegisterValue f1_value;
-          if (reg_ctx->ReadRegister(f1_info, f1_value)) {
-            DataExtractor data;
-            if (f1_value.GetData(data)) {
-              lldb::offset_t offset = 0;
-              if (byte_size == sizeof(float)) {
-                value.GetScalar() = (float)data.GetFloat(&offset);
-                success = true;
-              } else if (byte_size == sizeof(double)) {
-                value.GetScalar() = (double)data.GetDouble(&offset);
-                success = true;
-              }
-            }
-          }
-        }
+        va_list va;
+        va_start(va, fmt);
+        s.PrintfVarArg(fmt, va);
+        va_end(va);
+        m_log->PutString(s.GetString());
       }
     }
 
-    if (success)
-      return_valobj_sp = ValueObjectConstResult::Create(
-          thread.GetStackFrameAtIndex(0).get(), value, ConstString(""));
-  } else if (type_flags & eTypeIsPointer) {
-    unsigned r3_id =
-        reg_ctx->GetRegisterInfoByName("r3", 0)->kinds[eRegisterKindLLDB];
-    value.GetScalar() =
-        (uint64_t)thread.GetRegisterContext()->ReadRegisterAsUnsigned(r3_id, 0);
-    value.SetValueType(Value::eValueTypeScalar);
-    return_valobj_sp = ValueObjectConstResult::Create(
-        thread.GetStackFrameAtIndex(0).get(), value, ConstString(""));
-  } else if (type_flags & eTypeIsVector) {
-    const size_t byte_size = return_compiler_type.GetByteSize(nullptr);
-    if (byte_size > 0) {
-      const RegisterInfo *altivec_reg =
-          reg_ctx->GetRegisterInfoByName("vr2",  0);
-      if (altivec_reg) {
-        if (byte_size <= altivec_reg->byte_size) {
-          ProcessSP process_sp(thread.GetProcess());
-          if (process_sp) {
-            std::unique_ptr<DataBufferHeap> heap_data_ap(
-                new DataBufferHeap(byte_size, 0));
-            const ByteOrder byte_order = process_sp->GetByteOrder();
-            RegisterValue reg_value;
-            if (reg_ctx->ReadRegister(altivec_reg, reg_value)) {
-              Status error;
-              if (reg_value.GetAsMemoryData(
-                      altivec_reg, heap_data_ap->GetBytes(),
-                      heap_data_ap->GetByteSize(), byte_order, error)) {
-                DataExtractor data(DataBufferSP(heap_data_ap.release()),
-                                   byte_order, process_sp->GetTarget()
-                                                   .GetArchitecture()
-                                                   .GetAddressByteSize());
-                return_valobj_sp = ValueObjectConstResult::Create(
-                    &thread, return_compiler_type, ConstString(""), data);
-              }
-            }
-          }
-        }
-      }
+  private:
+    Log *m_log;
+  };
+
+  // This class represents a register, from which data may be extracted.
+  //
+  // It may be constructed by directly specifying its index (where 0 is
+  // the first register used to return values) or by specifying the offset
+  // of a given struct field, in which case the appropriated register index
+  // will be calculated.
+  class Register {
+  public:
+    enum Type {
+      GPR,  // General Purpose Register
+      FPR   // Floating Point Register
+    };
+
+    // main constructor
+    //
+    // offs - field offset in struct
+    Register(Type ty, uint32_t index, uint32_t offs,
+        RegisterContext *reg_ctx, ByteOrder byte_order) :
+      m_index(index),
+      m_offs(offs % sizeof(uint64_t)),
+      m_avail(sizeof(uint64_t) - m_offs),
+      m_type(ty),
+      m_reg_ctx(reg_ctx),
+      m_byte_order(byte_order)
+    {}
+
+    // explicit index, no offset
+    Register(Type ty, uint32_t index,
+        RegisterContext *reg_ctx, ByteOrder byte_order) :
+      Register(ty, index, 0, reg_ctx, byte_order)
+    {}
+
+    // GPR, calculate index from offs
+    Register(uint32_t offs, RegisterContext *reg_ctx, ByteOrder byte_order) :
+      Register(GPR, offs / sizeof(uint64_t), offs, reg_ctx, byte_order)
+    {}
+
+    uint32_t Index() const {
+      return m_index;
     }
+
+    // register offset where data is located
+    uint32_t Offs() const {
+      return m_offs;
+    }
+
+    // available bytes in this register
+    uint32_t Avail() const {
+      return m_avail;
+    }
+
+    bool IsValid() const {
+      if (m_index > 7) {
+        LOG("no more than 8 registers should be used to return values\n");
+        return false;
+      }
+      return true;
+    }
+
+    std::string GetGPRName() const {
+      std::string regName;
+      llvm::raw_string_ostream ss(regName);
+      ss << "r" << m_index + 3;
+      ss.flush();
+      return regName;
+    }
+
+    std::string GetFPRName() const {
+      std::string regName;
+      llvm::raw_string_ostream ss(regName);
+      ss << "f" << m_index + 1;
+      ss.flush();
+      return regName;
+    }
+
+    std::string Name() const {
+      return m_type == GPR? GetGPRName() : GetFPRName();
+    }
+
+    // get raw register data
+    bool GetRawData(uint64_t &raw_data) {
+      const RegisterInfo *reg_info =
+        m_reg_ctx->GetRegisterInfoByName(Name());
+      if (!reg_info) {
+        LOG("Failed to get RegisterInfo\n");
+        return false;
+      }
+
+      RegisterValue reg_val;
+      if (!m_reg_ctx->ReadRegister(reg_info, reg_val)) {
+        LOG("ReadRegister() failed\n");
+        return false;
+      }
+
+      Status error;
+      uint32_t rc = reg_val.GetAsMemoryData(reg_info,
+          &raw_data, sizeof(raw_data), m_byte_order, error);
+      if (rc != sizeof(raw_data)) {
+        LOG("GetAsMemoryData() failed\n");
+        return false;
+      }
+
+      return true;
+    }
+
+  private:
+    uint32_t m_index;
+    uint32_t m_offs;
+    uint32_t m_avail;
+    Type m_type;
+    RegisterContext *m_reg_ctx;
+    ByteOrder m_byte_order;
+    Logger m_logger;
+  };
+
+  Register GetGPR(uint32_t index) const {
+    return Register(Register::GPR, index, m_reg_ctx, m_byte_order);
   }
 
-  return return_valobj_sp;
+  Register GetFPR(uint32_t index) const {
+    return Register(Register::FPR, index, m_reg_ctx, m_byte_order);
+  }
+
+  Register GetGPRByOffs(uint32_t offs) const {
+    return Register(offs, m_reg_ctx, m_byte_order);
+  }
+
+public:
+  // constructor - can't fail
+  ReturnValueExtractor(Thread &thread, CompilerType &type)
+    : m_thread(thread),
+      m_type(type) {
+    m_byte_size = m_type.GetByteSize(nullptr);
+    m_data_ap.reset(new DataBufferHeap(m_byte_size, 0));
+  }
+
+  // initialize all members
+  bool Init()
+  {
+    m_reg_ctx = m_thread.GetRegisterContext().get();
+    if (!m_reg_ctx) {
+      LOG("Failed to get RegisterContext\n");
+      return false;
+    }
+
+    m_process_sp = m_thread.GetProcess();
+    if (!m_process_sp) {
+      LOG("GetProcess() failed\n");
+      return false;
+    }
+    m_byte_order = m_process_sp->GetByteOrder();
+
+    m_addr_size = m_process_sp->GetTarget()
+      .GetArchitecture().GetAddressByteSize();
+
+    return true;
+  }
+
+  // main method: get value of the type specified at construction time
+  ValueObjectSP GetValue() {
+    const uint32_t type_flags = m_type.GetTypeInfo();
+
+    // call the appropriate type handler
+    ValueSP value_sp;
+    ValueObjectSP valobj_sp;
+    if (type_flags & eTypeIsScalar) {
+      if (type_flags & eTypeIsInteger) {
+        value_sp = GetIntegerValue(0);
+      } else if (type_flags & eTypeIsFloat) {
+        if (type_flags & eTypeIsComplex) {
+          LOG("Complex numbers are not supported yet\n");
+          return ValueObjectSP();
+        } else {
+          value_sp = GetFloatValue(m_type, 0);
+        }
+      }
+    } else if (type_flags & eTypeIsPointer) {
+      value_sp = GetPointerValue(0);
+    }
+
+    if (value_sp) {
+      valobj_sp = ValueObjectConstResult::Create(
+          m_thread.GetStackFrameAtIndex(0).get(), *value_sp, ConstString(""));
+    } else if (type_flags & eTypeIsVector) {
+      valobj_sp = GetVectorValueObject();
+    } else if (type_flags & eTypeIsStructUnion || type_flags & eTypeIsClass) {
+      valobj_sp = GetStructValueObject();
+    }
+
+    return valobj_sp;
+  }
+
+private:
+  // data
+
+  // ctor args
+  Thread &m_thread;
+  CompilerType &m_type;
+  // set by ctor
+  uint64_t m_byte_size;
+  std::unique_ptr <DataBufferHeap> m_data_ap;
+  int32_t m_src_offs = 0;
+  int32_t m_dst_offs = 0;
+  bool m_packed = false;
+  Logger m_logger;
+  // set by init
+  RegisterContext *m_reg_ctx;
+  ProcessSP m_process_sp;
+  ByteOrder m_byte_order;
+  uint32_t m_addr_size;
+
+  // methods
+
+  // build a new scalar value
+  ValueSP NewScalarValue(CompilerType &type) {
+    ValueSP value_sp(new Value);
+    value_sp->SetCompilerType(type);
+    value_sp->SetValueType(Value::eValueTypeScalar);
+    return value_sp;
+  }
+
+  // get an integer value in the specified register
+  ValueSP GetIntegerValue(uint32_t reg_index) {
+    uint64_t raw_value;
+    auto reg = GetGPR(reg_index);
+    if (!reg.GetRawData(raw_value))
+      return ValueSP();
+
+    // build value from data
+    ValueSP value_sp(NewScalarValue(m_type));
+
+    uint32_t type_flags = m_type.GetTypeInfo();
+    bool is_signed = (type_flags & eTypeIsSigned) != 0;
+
+    switch (m_byte_size) {
+    case sizeof(uint64_t):
+      if (is_signed)
+        value_sp->GetScalar() = (int64_t)(raw_value);
+      else
+        value_sp->GetScalar() = (uint64_t)(raw_value);
+      break;
+
+    case sizeof(uint32_t):
+      if (is_signed)
+        value_sp->GetScalar() = (int32_t)(raw_value & UINT32_MAX);
+      else
+        value_sp->GetScalar() = (uint32_t)(raw_value & UINT32_MAX);
+      break;
+
+    case sizeof(uint16_t):
+      if (is_signed)
+        value_sp->GetScalar() = (int16_t)(raw_value & UINT16_MAX);
+      else
+        value_sp->GetScalar() = (uint16_t)(raw_value & UINT16_MAX);
+      break;
+
+    case sizeof(uint8_t):
+      if (is_signed)
+        value_sp->GetScalar() = (int8_t)(raw_value & UINT8_MAX);
+      else
+        value_sp->GetScalar() = (uint8_t)(raw_value & UINT8_MAX);
+      break;
+
+    default:
+      llvm_unreachable("Invalid integer size");
+    }
+
+    return value_sp;
+  }
+
+  // get a floating point value on the specified register
+  ValueSP GetFloatValue(CompilerType &type, uint32_t reg_index) {
+    uint64_t raw_data;
+    auto reg = GetFPR(reg_index);
+    if (!reg.GetRawData(raw_data))
+      return ValueSP();
+
+    // build value from data
+    ValueSP value_sp(NewScalarValue(type));
+
+    DataExtractor de(&raw_data, sizeof(raw_data), m_byte_order, m_addr_size);
+
+    offset_t offset = 0;
+    size_t byte_size = type.GetByteSize(nullptr);
+    switch (byte_size) {
+      case sizeof(float):
+        value_sp->GetScalar() = (float)de.GetDouble(&offset);
+        break;
+
+      case sizeof(double):
+        value_sp->GetScalar() = de.GetDouble(&offset);
+        break;
+
+      default:
+        llvm_unreachable("Invalid floating point size");
+    }
+
+    return value_sp;
+  }
+
+  // get pointer value from register
+  ValueSP GetPointerValue(uint32_t reg_index) {
+    uint64_t raw_data;
+    auto reg = GetGPR(reg_index);
+    if (!reg.GetRawData(raw_data))
+      return ValueSP();
+
+    // build value from raw data
+    ValueSP value_sp(NewScalarValue(m_type));
+    value_sp->GetScalar() = raw_data;
+    return value_sp;
+  }
+
+  // build the ValueObject from our data buffer
+  ValueObjectSP BuildValueObject() {
+    DataExtractor de(DataBufferSP(m_data_ap.release()),
+        m_byte_order, m_addr_size);
+    return ValueObjectConstResult::Create(&m_thread, m_type,
+        ConstString(""), de);
+  }
+
+  // get a vector return value
+  ValueObjectSP GetVectorValueObject() {
+    const uint32_t MAX_VRS = 2;
+
+    // get first V register used to return values
+    const RegisterInfo *vr[MAX_VRS];
+    vr[0] = m_reg_ctx->GetRegisterInfoByName("vr2");
+    if (!vr[0]) {
+      LOG("Failed to get vr2 RegisterInfo\n");
+      return ValueObjectSP();
+    }
+
+    const uint32_t vr_size = vr[0]->byte_size;
+    size_t vrs = 1;
+    if (m_byte_size > 2 * vr_size) {
+      LOG("Returning vectors that don't fit in 2 VR regs is not supported");
+      return ValueObjectSP();
+    }
+
+    // load vr3, if needed
+    if (m_byte_size > vr_size) {
+      vrs++;
+      vr[1] = m_reg_ctx->GetRegisterInfoByName("vr3");
+      if (!vr[1]) {
+        LOG("Failed to get vr3 RegisterInfo\n");
+        return ValueObjectSP();
+      }
+    }
+
+    // Get the whole contents of vector registers and let the
+    // logic here arrange the data properly.
+
+    RegisterValue vr_val[MAX_VRS];
+    Status error;
+    std::unique_ptr <DataBufferHeap> vr_data(
+        new DataBufferHeap(vrs * vr_size, 0));
+
+    for (uint32_t i = 0; i < vrs; i++) {
+      if (!m_reg_ctx->ReadRegister(vr[i], vr_val[i])) {
+        LOG("Failed to read vector register contents\n");
+        return ValueObjectSP();
+      }
+      if (!vr_val[i].GetAsMemoryData(vr[i],
+            vr_data->GetBytes() + i * vr_size, vr_size,
+            m_byte_order, error)) {
+        LOG("Failed to extract vector register bytes\n");
+        return ValueObjectSP();
+      }
+    }
+
+    // The compiler generated code seems to always put the vector elements
+    // at the end of the vector register, in case they don't occupy all of it.
+    // This offset variable handles this.
+    uint32_t offs = 0;
+    if (m_byte_size < vr_size)
+      offs = vr_size - m_byte_size;
+
+    // copy extracted data to our buffer
+    memcpy(m_data_ap->GetBytes(), vr_data->GetBytes() + offs, m_byte_size);
+    return BuildValueObject();
+  }
+
+  // get a struct return value
+  ValueObjectSP GetStructValueObject() {
+    // case 1: get from stack
+    if (m_byte_size > 2 * sizeof(uint64_t)) {
+      uint64_t addr;
+      auto reg = GetGPR(0);
+      if (!reg.GetRawData(addr))
+        return ValueObjectSP();
+
+      Status error;
+      size_t rc = m_process_sp->ReadMemory(addr,
+          m_data_ap->GetBytes(), m_byte_size, error);
+      if (rc != m_byte_size) {
+        LOG("Failed to read memory pointed by r3\n");
+        return ValueObjectSP();
+      }
+      return BuildValueObject();
+    }
+
+    // get number of children
+    const bool omit_empty_base_classes = true;
+    uint32_t n = m_type.GetNumChildren(omit_empty_base_classes);
+    if (!n) {
+      LOG("No children found in struct\n");
+      return ValueObjectSP();
+    }
+
+    // case 2: homogeneous double or float aggregate
+    CompilerType elem_type;
+    if (m_type.IsHomogeneousAggregate(&elem_type)) {
+      uint32_t type_flags = elem_type.GetTypeInfo();
+      uint64_t elem_size = elem_type.GetByteSize(nullptr);
+      if (type_flags & eTypeIsComplex || !(type_flags & eTypeIsFloat)) {
+        LOG("Unexpected type found in homogeneous aggregate\n");
+        return ValueObjectSP();
+      }
+
+      for (uint32_t i = 0; i < n; i++) {
+        ValueSP val_sp = GetFloatValue(elem_type, i);
+        if (!val_sp)
+          return ValueObjectSP();
+
+        // copy to buffer
+        Status error;
+        size_t rc = val_sp->GetScalar().GetAsMemoryData(
+          m_data_ap->GetBytes() + m_dst_offs, elem_size,
+          m_byte_order, error);
+        if (rc != elem_size) {
+          LOG("Failed to get float data\n");
+          return ValueObjectSP();
+        }
+        m_dst_offs += elem_size;
+      }
+      return BuildValueObject();
+    }
+
+    // case 3: get from GPRs
+
+    // first, check if this is a packed struct or not
+    ClangASTContext *ast =
+        llvm::dyn_cast<ClangASTContext>(m_type.GetTypeSystem());
+    if (ast) {
+      clang::RecordDecl *record_decl =
+        ClangASTContext::GetAsRecordDecl(m_type);
+
+      if (record_decl) {
+        auto attrs = record_decl->attrs();
+        for (const auto& attr : attrs) {
+          if (attr->getKind() == clang::attr::Packed) {
+            m_packed = true;
+            break;
+          }
+        }
+      }
+    }
+
+    LOG("GetStructValueObject(): packed=%d\n", m_packed? 1 : 0);
+
+    for (uint32_t i = 0; i < n; i++) {
+      std::string name;
+      uint32_t size;
+      GetChildType(i, name, size);
+      // NOTE: the offset returned by GetChildCompilerTypeAtIndex()
+      //       can't be used because it never considers alignment bytes
+      //       between struct fields.
+      LOG("GetStructValueObject(): field=%s, size=%u\n",
+          name.c_str(), size);
+      if (!ExtractField(size))
+        return ValueObjectSP();
+    }
+
+    return BuildValueObject();
+  }
+
+  // extract 'size' bytes at 'offs' from GPRs
+  bool ExtractFromRegs(int32_t offs, uint32_t size, void *buf) {
+    while (size) {
+      auto reg = GetGPRByOffs(offs);
+      if (!reg.IsValid())
+        return false;
+
+      uint32_t n = std::min(reg.Avail(), size);
+      uint64_t raw_data;
+
+      if (!reg.GetRawData(raw_data))
+        return false;
+
+      memcpy(buf, (char *)&raw_data + reg.Offs(), n);
+      offs += n;
+      size -= n;
+      buf  = (char *)buf + n;
+    }
+    return true;
+  }
+
+  // extract one field from GPRs and put it in our buffer
+  bool ExtractField(uint32_t size) {
+    auto reg = GetGPRByOffs(m_src_offs);
+    if (!reg.IsValid())
+      return false;
+
+    // handle padding
+    if (!m_packed) {
+      uint32_t n = m_src_offs % size;
+
+      // not 'size' bytes aligned
+      if (n) {
+        LOG("ExtractField(): extracting %u alignment bytes at offset %u\n",
+            n, m_src_offs);
+        // get alignment bytes
+        if (!ExtractFromRegs(m_src_offs, n, m_data_ap->GetBytes() + m_dst_offs))
+          return false;
+        m_src_offs += n;
+        m_dst_offs += n;
+      }
+    }
+
+    // get field
+    LOG("ExtractField(): extracting %u field bytes at offset %u\n",
+        size, m_src_offs);
+    if (!ExtractFromRegs(m_src_offs, size, m_data_ap->GetBytes() + m_dst_offs))
+      return false;
+    m_src_offs += size;
+    m_dst_offs += size;
+    return true;
+  }
+
+  // get child
+  CompilerType GetChildType(uint32_t i, std::string &name, uint32_t &size) {
+    // GetChild constant inputs
+    const bool transparent_pointers = false;
+    const bool omit_empty_base_classes = true;
+    const bool ignore_array_bounds = false;
+    // GetChild output params
+    int32_t child_offs;
+    uint32_t child_bitfield_bit_size;
+    uint32_t child_bitfield_bit_offset;
+    bool child_is_base_class;
+    bool child_is_deref_of_parent;
+    ValueObject *valobj = nullptr;
+    uint64_t language_flags;
+    ExecutionContext exe_ctx;
+    m_thread.CalculateExecutionContext(exe_ctx);
+
+    return m_type.GetChildCompilerTypeAtIndex(
+        &exe_ctx,
+        i,
+        transparent_pointers,
+        omit_empty_base_classes,
+        ignore_array_bounds,
+        name,
+        size,
+        child_offs,
+        child_bitfield_bit_size,
+        child_bitfield_bit_offset,
+        child_is_base_class,
+        child_is_deref_of_parent,
+        valobj,
+        language_flags);
+  }
+};
+
+#undef LOG
+#undef LOG_PREFIX
+
+} // anonymous namespace
+
+ValueObjectSP ABISysV_ppc64::GetReturnValueObjectSimple(
+    Thread &thread, CompilerType &type) const {
+  if (!type)
+    return ValueObjectSP();
+
+  ReturnValueExtractor extractor(thread, type);
+  if (!extractor.Init())
+    return ValueObjectSP();
+
+  return extractor.GetValue();
 }
 
 ValueObjectSP ABISysV_ppc64::GetReturnValueObjectImpl(Thread &thread,
