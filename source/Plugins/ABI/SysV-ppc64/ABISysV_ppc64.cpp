@@ -16,6 +16,8 @@
 #include "llvm/ADT/Triple.h"
 
 // Project includes
+#include "Utility/PPC64LE_DWARF_Registers.h"
+#include "Utility/PPC64_DWARF_Registers.h"
 #include "lldb/Core/Module.h"
 #include "lldb/Core/PluginManager.h"
 #include "lldb/Core/RegisterValue.h"
@@ -34,8 +36,6 @@
 #include "lldb/Utility/DataExtractor.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/Status.h"
-#include "Utility/PPC64_DWARF_Registers.h"
-#include "Utility/PPC64LE_DWARF_Registers.h"
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Attr.h"
@@ -54,12 +54,11 @@ using namespace lldb_private;
 
 const lldb_private::RegisterInfo *
 ABISysV_ppc64::GetRegisterInfoArray(uint32_t &count) {
-  if (GetByteOrder() == lldb::eByteOrderLittle)
-  {
-    count = llvm::array_lengthof (g_register_infos_ppc64le);
+  if (GetByteOrder() == lldb::eByteOrderLittle) {
+    count = llvm::array_lengthof(g_register_infos_ppc64le);
     return g_register_infos_ppc64le;
   } else {
-    count = llvm::array_lengthof (g_register_infos_ppc64);
+    count = llvm::array_lengthof(g_register_infos_ppc64);
     return g_register_infos_ppc64;
   }
 }
@@ -75,10 +74,11 @@ lldb::ByteOrder ABISysV_ppc64::GetByteOrder() const {
 //------------------------------------------------------------------
 
 ABISP
-ABISysV_ppc64::CreateInstance(lldb::ProcessSP process_sp, const ArchSpec &arch) {
+ABISysV_ppc64::CreateInstance(lldb::ProcessSP process_sp,
+                              const ArchSpec &arch) {
   if (arch.GetTriple().getArch() == llvm::Triple::ppc64 ||
       arch.GetTriple().getArch() == llvm::Triple::ppc64le) {
-      return ABISP(new ABISysV_ppc64(process_sp));
+    return ABISP(new ABISysV_ppc64(process_sp));
   }
   return ABISP();
 }
@@ -147,7 +147,8 @@ bool ABISysV_ppc64::PrepareTrivialCall(Thread &thread, addr_t sp,
   // Save return address onto the stack.
   if (log)
     log->Printf("Pushing the return address onto the stack: 0x%" PRIx64
-                "(+16): 0x%" PRIx64, (uint64_t)sp, (uint64_t)return_addr);
+                "(+16): 0x%" PRIx64,
+                (uint64_t)sp, (uint64_t)return_addr);
   if (!process_sp->WritePointerToMemory(sp + 16, return_addr, error))
     return false;
 
@@ -175,7 +176,8 @@ bool ABISysV_ppc64::PrepareTrivialCall(Thread &thread, addr_t sp,
 
   if (log)
     log->Printf("Writing R2 (TOC) at SP(0x%" PRIx64 ")+%d: 0x%" PRIx64,
-        (uint64_t)(sp + stack_offset), (int) stack_offset, (uint64_t)reg_value);
+                (uint64_t)(sp + stack_offset), (int)stack_offset,
+                (uint64_t)reg_value);
   if (!process_sp->WritePointerToMemory(sp + stack_offset, reg_value, error))
     return false;
 
@@ -184,8 +186,8 @@ bool ABISysV_ppc64::PrepareTrivialCall(Thread &thread, addr_t sp,
 
   // Save current SP onto the stack.
   if (log)
-    log->Printf("Writing SP at SP(0x%" PRIx64 ")+0: 0x%" PRIx64,
-      (uint64_t)sp, (uint64_t)reg_value);
+    log->Printf("Writing SP at SP(0x%" PRIx64 ")+0: 0x%" PRIx64, (uint64_t)sp,
+                (uint64_t)reg_value);
   if (!process_sp->WritePointerToMemory(sp, reg_value, error))
     return false;
 
@@ -264,8 +266,11 @@ bool ABISysV_ppc64::GetArgumentValues(Thread &thread, ValueList &values) const {
   uint32_t argument_register_ids[8];
 
   for (size_t i = 0; i < 8; ++i) {
-    argument_register_ids[i] = reg_ctx->GetRegisterInfo(eRegisterKindGeneric,
-        LLDB_REGNUM_GENERIC_ARG1 + i)->kinds[eRegisterKindLLDB];
+    argument_register_ids[i] =
+        reg_ctx
+            ->GetRegisterInfo(eRegisterKindGeneric,
+                              LLDB_REGNUM_GENERIC_ARG1 + i)
+            ->kinds[eRegisterKindLLDB];
   }
 
   unsigned int current_argument_register = 0;
@@ -392,34 +397,7 @@ namespace {
 
 #define LOG_PREFIX "ReturnValueExtractor: "
 
-#define LOG(...) \
-  m_logger.LogMsg(LOG_PREFIX __VA_ARGS__)
-
 class ReturnValueExtractor {
-  // Log wrapper
-  class Logger {
-  public:
-    Logger() :
-      m_log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_EXPRESSIONS))
-    {}
-
-    // send a message to the logger
-    void LogMsg(const char *fmt, ...) const {
-      if (m_log) {
-        StreamString s;
-
-        va_list va;
-        va_start(va, fmt);
-        s.PrintfVarArg(fmt, va);
-        va_end(va);
-        m_log->PutString(s.GetString());
-      }
-    }
-
-  private:
-    Log *m_log;
-  };
-
   // This class represents a register, from which data may be extracted.
   //
   // It may be constructed by directly specifying its index (where 0 is
@@ -429,51 +407,40 @@ class ReturnValueExtractor {
   class Register {
   public:
     enum Type {
-      GPR,  // General Purpose Register
-      FPR   // Floating Point Register
+      GPR, // General Purpose Register
+      FPR  // Floating Point Register
     };
 
     // main constructor
     //
     // offs - field offset in struct
-    Register(Type ty, uint32_t index, uint32_t offs,
-        RegisterContext *reg_ctx, ByteOrder byte_order) :
-      m_index(index),
-      m_offs(offs % sizeof(uint64_t)),
-      m_avail(sizeof(uint64_t) - m_offs),
-      m_type(ty),
-      m_reg_ctx(reg_ctx),
-      m_byte_order(byte_order)
-    {}
+    Register(Type ty, uint32_t index, uint32_t offs, RegisterContext *reg_ctx,
+             ByteOrder byte_order)
+        : m_index(index), m_offs(offs % sizeof(uint64_t)),
+          m_avail(sizeof(uint64_t) - m_offs), m_type(ty), m_reg_ctx(reg_ctx),
+          m_byte_order(byte_order) {}
 
     // explicit index, no offset
-    Register(Type ty, uint32_t index,
-        RegisterContext *reg_ctx, ByteOrder byte_order) :
-      Register(ty, index, 0, reg_ctx, byte_order)
-    {}
+    Register(Type ty, uint32_t index, RegisterContext *reg_ctx,
+             ByteOrder byte_order)
+        : Register(ty, index, 0, reg_ctx, byte_order) {}
 
     // GPR, calculate index from offs
-    Register(uint32_t offs, RegisterContext *reg_ctx, ByteOrder byte_order) :
-      Register(GPR, offs / sizeof(uint64_t), offs, reg_ctx, byte_order)
-    {}
+    Register(uint32_t offs, RegisterContext *reg_ctx, ByteOrder byte_order)
+        : Register(GPR, offs / sizeof(uint64_t), offs, reg_ctx, byte_order) {}
 
-    uint32_t Index() const {
-      return m_index;
-    }
+    uint32_t Index() const { return m_index; }
 
     // register offset where data is located
-    uint32_t Offs() const {
-      return m_offs;
-    }
+    uint32_t Offs() const { return m_offs; }
 
     // available bytes in this register
-    uint32_t Avail() const {
-      return m_avail;
-    }
+    uint32_t Avail() const { return m_avail; }
 
     bool IsValid() const {
       if (m_index > 7) {
-        LOG("no more than 8 registers should be used to return values\n");
+        LLDB_LOG(m_log, LOG_PREFIX
+                 "No more than 8 registers should be used to return values");
         return false;
       }
       return true;
@@ -496,29 +463,28 @@ class ReturnValueExtractor {
     }
 
     std::string Name() const {
-      return m_type == GPR? GetGPRName() : GetFPRName();
+      return m_type == GPR ? GetGPRName() : GetFPRName();
     }
 
     // get raw register data
     bool GetRawData(uint64_t &raw_data) {
-      const RegisterInfo *reg_info =
-        m_reg_ctx->GetRegisterInfoByName(Name());
+      const RegisterInfo *reg_info = m_reg_ctx->GetRegisterInfoByName(Name());
       if (!reg_info) {
-        LOG("Failed to get RegisterInfo\n");
+        LLDB_LOG(m_log, LOG_PREFIX "Failed to get RegisterInfo");
         return false;
       }
 
       RegisterValue reg_val;
       if (!m_reg_ctx->ReadRegister(reg_info, reg_val)) {
-        LOG("ReadRegister() failed\n");
+        LLDB_LOG(m_log, LOG_PREFIX "ReadRegister() failed");
         return false;
       }
 
       Status error;
-      uint32_t rc = reg_val.GetAsMemoryData(reg_info,
-          &raw_data, sizeof(raw_data), m_byte_order, error);
+      uint32_t rc = reg_val.GetAsMemoryData(
+          reg_info, &raw_data, sizeof(raw_data), m_byte_order, error);
       if (rc != sizeof(raw_data)) {
-        LOG("GetAsMemoryData() failed\n");
+        LLDB_LOG(m_log, LOG_PREFIX "GetAsMemoryData() failed");
         return false;
       }
 
@@ -532,7 +498,8 @@ class ReturnValueExtractor {
     Type m_type;
     RegisterContext *m_reg_ctx;
     ByteOrder m_byte_order;
-    Logger m_logger;
+    Log *m_log =
+        lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_EXPRESSIONS);
   };
 
   Register GetGPR(uint32_t index) const {
@@ -548,34 +515,21 @@ class ReturnValueExtractor {
   }
 
 public:
-  // constructor - can't fail
-  ReturnValueExtractor(Thread &thread, CompilerType &type)
-    : m_thread(thread),
-      m_type(type) {
-    m_byte_size = m_type.GetByteSize(nullptr);
-    m_data_ap.reset(new DataBufferHeap(m_byte_size, 0));
-  }
+  // factory
+  static llvm::Expected<ReturnValueExtractor> Create(Thread &thread,
+                                                     CompilerType &type) {
+    RegisterContext *reg_ctx = thread.GetRegisterContext().get();
+    if (!reg_ctx)
+      return llvm::make_error<llvm::StringError>(
+          LOG_PREFIX "Failed to get RegisterContext",
+          llvm::inconvertibleErrorCode());
 
-  // initialize all members
-  bool Init()
-  {
-    m_reg_ctx = m_thread.GetRegisterContext().get();
-    if (!m_reg_ctx) {
-      LOG("Failed to get RegisterContext\n");
-      return false;
-    }
+    ProcessSP process_sp = thread.GetProcess();
+    if (!process_sp)
+      return llvm::make_error<llvm::StringError>(
+          LOG_PREFIX "GetProcess() failed", llvm::inconvertibleErrorCode());
 
-    m_process_sp = m_thread.GetProcess();
-    if (!m_process_sp) {
-      LOG("GetProcess() failed\n");
-      return false;
-    }
-    m_byte_order = m_process_sp->GetByteOrder();
-
-    m_addr_size = m_process_sp->GetTarget()
-      .GetArchitecture().GetAddressByteSize();
-
-    return true;
+    return ReturnValueExtractor(thread, type, reg_ctx, process_sp);
   }
 
   // main method: get value of the type specified at construction time
@@ -590,7 +544,7 @@ public:
         value_sp = GetIntegerValue(0);
       } else if (type_flags & eTypeIsFloat) {
         if (type_flags & eTypeIsComplex) {
-          LOG("Complex numbers are not supported yet\n");
+          LLDB_LOG(m_log, LOG_PREFIX "Complex numbers are not supported yet");
           return ValueObjectSP();
         } else {
           value_sp = GetFloatValue(m_type, 0);
@@ -614,24 +568,30 @@ public:
 
 private:
   // data
-
-  // ctor args
   Thread &m_thread;
   CompilerType &m_type;
-  // set by ctor
   uint64_t m_byte_size;
-  std::unique_ptr <DataBufferHeap> m_data_ap;
+  std::unique_ptr<DataBufferHeap> m_data_ap;
   int32_t m_src_offs = 0;
   int32_t m_dst_offs = 0;
   bool m_packed = false;
-  Logger m_logger;
-  // set by init
+  Log *m_log = lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_EXPRESSIONS);
   RegisterContext *m_reg_ctx;
   ProcessSP m_process_sp;
   ByteOrder m_byte_order;
   uint32_t m_addr_size;
 
   // methods
+
+  // constructor
+  ReturnValueExtractor(Thread &thread, CompilerType &type,
+                       RegisterContext *reg_ctx, ProcessSP process_sp)
+      : m_thread(thread), m_type(type),
+        m_byte_size(m_type.GetByteSize(nullptr)),
+        m_data_ap(new DataBufferHeap(m_byte_size, 0)), m_reg_ctx(reg_ctx),
+        m_process_sp(process_sp), m_byte_order(process_sp->GetByteOrder()),
+        m_addr_size(
+            process_sp->GetTarget().GetArchitecture().GetAddressByteSize()) {}
 
   // build a new scalar value
   ValueSP NewScalarValue(CompilerType &type) {
@@ -705,16 +665,16 @@ private:
     offset_t offset = 0;
     size_t byte_size = type.GetByteSize(nullptr);
     switch (byte_size) {
-      case sizeof(float):
-        value_sp->GetScalar() = (float)de.GetDouble(&offset);
-        break;
+    case sizeof(float):
+      value_sp->GetScalar() = (float)de.GetDouble(&offset);
+      break;
 
-      case sizeof(double):
-        value_sp->GetScalar() = de.GetDouble(&offset);
-        break;
+    case sizeof(double):
+      value_sp->GetScalar() = de.GetDouble(&offset);
+      break;
 
-      default:
-        llvm_unreachable("Invalid floating point size");
+    default:
+      llvm_unreachable("Invalid floating point size");
     }
 
     return value_sp;
@@ -735,10 +695,10 @@ private:
 
   // build the ValueObject from our data buffer
   ValueObjectSP BuildValueObject() {
-    DataExtractor de(DataBufferSP(m_data_ap.release()),
-        m_byte_order, m_addr_size);
-    return ValueObjectConstResult::Create(&m_thread, m_type,
-        ConstString(""), de);
+    DataExtractor de(DataBufferSP(m_data_ap.release()), m_byte_order,
+                     m_addr_size);
+    return ValueObjectConstResult::Create(&m_thread, m_type, ConstString(""),
+                                          de);
   }
 
   // get a vector return value
@@ -749,14 +709,16 @@ private:
     const RegisterInfo *vr[MAX_VRS];
     vr[0] = m_reg_ctx->GetRegisterInfoByName("vr2");
     if (!vr[0]) {
-      LOG("Failed to get vr2 RegisterInfo\n");
+      LLDB_LOG(m_log, LOG_PREFIX "Failed to get vr2 RegisterInfo");
       return ValueObjectSP();
     }
 
     const uint32_t vr_size = vr[0]->byte_size;
     size_t vrs = 1;
     if (m_byte_size > 2 * vr_size) {
-      LOG("Returning vectors that don't fit in 2 VR regs is not supported");
+      LLDB_LOG(
+          m_log, LOG_PREFIX
+          "Returning vectors that don't fit in 2 VR regs is not supported");
       return ValueObjectSP();
     }
 
@@ -765,7 +727,7 @@ private:
       vrs++;
       vr[1] = m_reg_ctx->GetRegisterInfoByName("vr3");
       if (!vr[1]) {
-        LOG("Failed to get vr3 RegisterInfo\n");
+        LLDB_LOG(m_log, LOG_PREFIX "Failed to get vr3 RegisterInfo");
         return ValueObjectSP();
       }
     }
@@ -775,18 +737,17 @@ private:
 
     RegisterValue vr_val[MAX_VRS];
     Status error;
-    std::unique_ptr <DataBufferHeap> vr_data(
+    std::unique_ptr<DataBufferHeap> vr_data(
         new DataBufferHeap(vrs * vr_size, 0));
 
     for (uint32_t i = 0; i < vrs; i++) {
       if (!m_reg_ctx->ReadRegister(vr[i], vr_val[i])) {
-        LOG("Failed to read vector register contents\n");
+        LLDB_LOG(m_log, LOG_PREFIX "Failed to read vector register contents");
         return ValueObjectSP();
       }
-      if (!vr_val[i].GetAsMemoryData(vr[i],
-            vr_data->GetBytes() + i * vr_size, vr_size,
-            m_byte_order, error)) {
-        LOG("Failed to extract vector register bytes\n");
+      if (!vr_val[i].GetAsMemoryData(vr[i], vr_data->GetBytes() + i * vr_size,
+                                     vr_size, m_byte_order, error)) {
+        LLDB_LOG(m_log, LOG_PREFIX "Failed to extract vector register bytes");
         return ValueObjectSP();
       }
     }
@@ -813,10 +774,10 @@ private:
         return ValueObjectSP();
 
       Status error;
-      size_t rc = m_process_sp->ReadMemory(addr,
-          m_data_ap->GetBytes(), m_byte_size, error);
+      size_t rc = m_process_sp->ReadMemory(addr, m_data_ap->GetBytes(),
+                                           m_byte_size, error);
       if (rc != m_byte_size) {
-        LOG("Failed to read memory pointed by r3\n");
+        LLDB_LOG(m_log, LOG_PREFIX "Failed to read memory pointed by r3");
         return ValueObjectSP();
       }
       return BuildValueObject();
@@ -826,7 +787,7 @@ private:
     const bool omit_empty_base_classes = true;
     uint32_t n = m_type.GetNumChildren(omit_empty_base_classes);
     if (!n) {
-      LOG("No children found in struct\n");
+      LLDB_LOG(m_log, LOG_PREFIX "No children found in struct");
       return ValueObjectSP();
     }
 
@@ -836,7 +797,8 @@ private:
       uint32_t type_flags = elem_type.GetTypeInfo();
       uint64_t elem_size = elem_type.GetByteSize(nullptr);
       if (type_flags & eTypeIsComplex || !(type_flags & eTypeIsFloat)) {
-        LOG("Unexpected type found in homogeneous aggregate\n");
+        LLDB_LOG(m_log,
+                 LOG_PREFIX "Unexpected type found in homogeneous aggregate");
         return ValueObjectSP();
       }
 
@@ -848,10 +810,9 @@ private:
         // copy to buffer
         Status error;
         size_t rc = val_sp->GetScalar().GetAsMemoryData(
-          m_data_ap->GetBytes() + m_dst_offs, elem_size,
-          m_byte_order, error);
+            m_data_ap->GetBytes() + m_dst_offs, elem_size, m_byte_order, error);
         if (rc != elem_size) {
-          LOG("Failed to get float data\n");
+          LLDB_LOG(m_log, LOG_PREFIX "Failed to get float data");
           return ValueObjectSP();
         }
         m_dst_offs += elem_size;
@@ -865,12 +826,11 @@ private:
     ClangASTContext *ast =
         llvm::dyn_cast<ClangASTContext>(m_type.GetTypeSystem());
     if (ast) {
-      clang::RecordDecl *record_decl =
-        ClangASTContext::GetAsRecordDecl(m_type);
+      clang::RecordDecl *record_decl = ClangASTContext::GetAsRecordDecl(m_type);
 
       if (record_decl) {
         auto attrs = record_decl->attrs();
-        for (const auto& attr : attrs) {
+        for (const auto &attr : attrs) {
           if (attr->getKind() == clang::attr::Packed) {
             m_packed = true;
             break;
@@ -879,7 +839,8 @@ private:
       }
     }
 
-    LOG("GetStructValueObject(): packed=%d\n", m_packed? 1 : 0);
+    LLDB_LOG(m_log, LOG_PREFIX "{0} struct",
+             m_packed ? "packed" : "not packed");
 
     for (uint32_t i = 0; i < n; i++) {
       std::string name;
@@ -888,8 +849,7 @@ private:
       // NOTE: the offset returned by GetChildCompilerTypeAtIndex()
       //       can't be used because it never considers alignment bytes
       //       between struct fields.
-      LOG("GetStructValueObject(): field=%s, size=%u\n",
-          name.c_str(), size);
+      LLDB_LOG(m_log, LOG_PREFIX "field={0}, size={1}", name, size);
       if (!ExtractField(size))
         return ValueObjectSP();
     }
@@ -913,7 +873,7 @@ private:
       memcpy(buf, (char *)&raw_data + reg.Offs(), n);
       offs += n;
       size -= n;
-      buf  = (char *)buf + n;
+      buf = (char *)buf + n;
     }
     return true;
   }
@@ -930,8 +890,9 @@ private:
 
       // not 'size' bytes aligned
       if (n) {
-        LOG("ExtractField(): extracting %u alignment bytes at offset %u\n",
-            n, m_src_offs);
+        LLDB_LOG(m_log,
+                 LOG_PREFIX "Extracting {0} alignment bytes at offset {1}", n,
+                 m_src_offs);
         // get alignment bytes
         if (!ExtractFromRegs(m_src_offs, n, m_data_ap->GetBytes() + m_dst_offs))
           return false;
@@ -941,8 +902,8 @@ private:
     }
 
     // get field
-    LOG("ExtractField(): extracting %u field bytes at offset %u\n",
-        size, m_src_offs);
+    LLDB_LOG(m_log, LOG_PREFIX "Extracting {0} field bytes at offset {1}", size,
+             m_src_offs);
     if (!ExtractFromRegs(m_src_offs, size, m_data_ap->GetBytes() + m_dst_offs))
       return false;
     m_src_offs += size;
@@ -968,42 +929,39 @@ private:
     m_thread.CalculateExecutionContext(exe_ctx);
 
     return m_type.GetChildCompilerTypeAtIndex(
-        &exe_ctx,
-        i,
-        transparent_pointers,
-        omit_empty_base_classes,
-        ignore_array_bounds,
-        name,
-        size,
-        child_offs,
-        child_bitfield_bit_size,
-        child_bitfield_bit_offset,
-        child_is_base_class,
-        child_is_deref_of_parent,
-        valobj,
-        language_flags);
+        &exe_ctx, i, transparent_pointers, omit_empty_base_classes,
+        ignore_array_bounds, name, size, child_offs, child_bitfield_bit_size,
+        child_bitfield_bit_offset, child_is_base_class,
+        child_is_deref_of_parent, valobj, language_flags);
   }
 };
 
-#undef LOG
 #undef LOG_PREFIX
 
 } // anonymous namespace
 
-ValueObjectSP ABISysV_ppc64::GetReturnValueObjectSimple(
-    Thread &thread, CompilerType &type) const {
+ValueObjectSP
+ABISysV_ppc64::GetReturnValueObjectSimple(Thread &thread,
+                                          CompilerType &type) const {
   if (!type)
     return ValueObjectSP();
 
-  ReturnValueExtractor extractor(thread, type);
-  if (!extractor.Init())
+  auto exp_extractor = ReturnValueExtractor::Create(thread, type);
+  if (!exp_extractor) {
+    llvm::handleAllErrors(
+        exp_extractor.takeError(), [](const llvm::StringError &se) {
+          Log *log =
+              lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_EXPRESSIONS);
+          LLDB_LOG(log, "{0}", se.getMessage());
+        });
     return ValueObjectSP();
+  }
 
-  return extractor.GetValue();
+  return exp_extractor.get().GetValue();
 }
 
-ValueObjectSP ABISysV_ppc64::GetReturnValueObjectImpl(Thread &thread,
-    CompilerType &return_compiler_type) const {
+ValueObjectSP ABISysV_ppc64::GetReturnValueObjectImpl(
+    Thread &thread, CompilerType &return_compiler_type) const {
   return GetReturnValueObjectSimple(thread, return_compiler_type);
 }
 
@@ -1051,14 +1009,14 @@ bool ABISysV_ppc64::CreateDefaultUnwindPlan(UnwindPlan &unwind_plan) {
   uint32_t cr_reg_num;
 
   if (GetByteOrder() == lldb::eByteOrderLittle) {
-     sp_reg_num = ppc64le_dwarf::dwarf_r1_ppc64le;
-     pc_reg_num = ppc64le_dwarf::dwarf_lr_ppc64le;
-     cr_reg_num = ppc64le_dwarf::dwarf_cr_ppc64le;
-   } else {
-     sp_reg_num = ppc64_dwarf::dwarf_r1_ppc64;
-     pc_reg_num = ppc64_dwarf::dwarf_lr_ppc64;
-     cr_reg_num = ppc64_dwarf::dwarf_cr_ppc64;
-   }
+    sp_reg_num = ppc64le_dwarf::dwarf_r1_ppc64le;
+    pc_reg_num = ppc64le_dwarf::dwarf_lr_ppc64le;
+    cr_reg_num = ppc64le_dwarf::dwarf_cr_ppc64le;
+  } else {
+    sp_reg_num = ppc64_dwarf::dwarf_r1_ppc64;
+    pc_reg_num = ppc64_dwarf::dwarf_lr_ppc64;
+    cr_reg_num = ppc64_dwarf::dwarf_cr_ppc64;
+  }
 
   UnwindPlan::RowSP row(new UnwindPlan::Row);
   const int32_t ptr_size = 8;
