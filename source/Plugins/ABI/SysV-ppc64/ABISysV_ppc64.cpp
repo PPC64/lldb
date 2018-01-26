@@ -70,13 +70,11 @@ lldb::ByteOrder ABISysV_ppc64::GetByteOrder() const {
 //------------------------------------------------------------------
 
 ABISP
-ABISysV_ppc64::CreateInstance(lldb::ProcessSP process_sp, const ArchSpec &arch) {
-  static ABISP g_abi_sp;
+ABISysV_ppc64::CreateInstance(lldb::ProcessSP process_sp,
+                              const ArchSpec &arch) {
   if (arch.GetTriple().getArch() == llvm::Triple::ppc64 ||
       arch.GetTriple().getArch() == llvm::Triple::ppc64le) {
-    if (!g_abi_sp)
-      g_abi_sp.reset(new ABISysV_ppc64(process_sp));
-    return g_abi_sp;
+    return ABISP(new ABISysV_ppc64(process_sp));
   }
   return ABISP();
 }
