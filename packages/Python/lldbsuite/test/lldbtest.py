@@ -50,6 +50,7 @@ import sys
 import time
 import traceback
 import types
+import distutils.spawn
 
 # Third-party modules
 import unittest2
@@ -1496,6 +1497,8 @@ class Base(unittest2.TestCase):
             dictionary=None,
             clean=True):
         """Platform specific way to build the default binaries."""
+        if self.debug_info:
+            raise Exception("buildDefault tests must set NO_DEBUG_INFO_TESTCASE")
         module = builder_module()
         dictionary = lldbplatformutil.finalize_build_dictionary(dictionary)
         if not module.buildDefault(
@@ -1589,10 +1592,10 @@ class Base(unittest2.TestCase):
     def findBuiltClang(self):
         """Tries to find and use Clang from the build directory as the compiler (instead of the system compiler)."""
         paths_to_try = [
-            "llvm-build/Release+Asserts/x86_64/Release+Asserts/bin/clang",
-            "llvm-build/Debug+Asserts/x86_64/Debug+Asserts/bin/clang",
-            "llvm-build/Release/x86_64/Release/bin/clang",
-            "llvm-build/Debug/x86_64/Debug/bin/clang",
+            "llvm-build/Release+Asserts/x86_64/bin/clang",
+            "llvm-build/Debug+Asserts/x86_64/bin/clang",
+            "llvm-build/Release/x86_64/bin/clang",
+            "llvm-build/Debug/x86_64/bin/clang",
         ]
         lldb_root_path = os.path.join(
             os.path.dirname(__file__), "..", "..", "..", "..")
@@ -1602,11 +1605,37 @@ class Base(unittest2.TestCase):
                 return path
 
         # Tries to find clang at the same folder as the lldb
-        path = os.path.join(os.path.dirname(lldbtest_config.lldbExec), "clang")
-        if os.path.exists(path):
+        lldb_dir = os.path.dirname(lldbtest_config.lldbExec)
+        path = distutils.spawn.find_executable("clang", lldb_dir)
+        if path is not None:
             return path
 
         return os.environ["CC"]
+
+    def findYaml2obj(self):
+        """
+        Get the path to the yaml2obj executable, which can be used to create
+        test object files from easy to write yaml instructions.
+
+        Throws an Exception if the executable cannot be found.
+        """
+        # Tries to find yaml2obj at the same folder as clang
+        clang_dir = os.path.dirname(self.findBuiltClang())
+        path = distutils.spawn.find_executable("yaml2obj", clang_dir)
+        if path is not None:
+            return path
+        raise Exception("yaml2obj executable not found")
+
+
+    def yaml2obj(self, yaml_path, obj_path):
+        """
+        Create an object file at the given path from a yaml file.
+
+        Throws subprocess.CalledProcessError if the object could not be created.
+        """
+        yaml2obj = self.findYaml2obj()
+        command = [yaml2obj, "-o=%s" % obj_path, yaml_path]
+        system([command])
 
     def getBuildFlags(
             self,
@@ -1708,7 +1737,7 @@ class LLDBTestCaseFactory(type):
                 # authoritative.  If none were specified, try with all debug
                 # info formats.
                 all_dbginfo_categories = set(
-                    test_categories.debug_info_categories)
+                    test_categories.debug_info_categories) - set(configuration.skipCategories)
                 categories = set(
                     getattr(
                         attrvalue,
