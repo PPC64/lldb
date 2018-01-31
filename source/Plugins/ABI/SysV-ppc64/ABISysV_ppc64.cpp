@@ -948,12 +948,9 @@ ABISysV_ppc64::GetReturnValueObjectSimple(Thread &thread,
 
   auto exp_extractor = ReturnValueExtractor::Create(thread, type);
   if (!exp_extractor) {
-    llvm::handleAllErrors(
-        exp_extractor.takeError(), [](const llvm::StringError &se) {
-          Log *log =
-              lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_EXPRESSIONS);
-          LLDB_LOG(log, "{0}", se.getMessage());
-        });
+    Log *log = lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_EXPRESSIONS);
+    LLDB_LOG_ERROR(log, exp_extractor.takeError(),
+                   "Extracting return value failed: {0}");
     return ValueObjectSP();
   }
 
