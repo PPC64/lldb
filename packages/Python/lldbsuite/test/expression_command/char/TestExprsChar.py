@@ -49,7 +49,8 @@ class ExprCharTestCase(TestBase):
         archs=[
             "arm",
             "aarch64",
-            "s390x"],
+            "s390x",
+            "powerpc64le"],
         bugnumber="llvm.org/pr23069")
     @expectedFailureAll(oslist=["windows"], bugnumber="llvm.org/pr21765")
     def test_signed_char(self):
