@@ -258,19 +258,20 @@ bool ThreadPlanStepInRange::ShouldStop(Event *event_ptr) {
       lldb::StackFrameSP curr_frame = m_thread.GetStackFrameAtIndex(0);
       if (curr_frame) {
         size_t bytes_to_skip = LLDB_INVALID_OFFSET;
+        lldb::addr_t curr_addr = m_thread.GetRegisterContext()->GetPC();
         TargetSP target = m_thread.CalculateTarget();
+        Address func_start_address;
+
+        SymbolContext sc = curr_frame->GetSymbolContext(eSymbolContextFunction |
+                                                        eSymbolContextSymbol);
 
         Architecture *architecture = target->GetArchitecturePlugin();
         if (architecture)
-          bytes_to_skip = architecture->GetBytesToSkip(*this, *curr_frame);
+          bytes_to_skip = architecture->GetBytesToSkip(*target, sc, curr_addr,
+                                                       func_start_address);
 
         if (bytes_to_skip == LLDB_INVALID_OFFSET) {
-          lldb::addr_t curr_addr = m_thread.GetRegisterContext()->GetPC();
-          Address func_start_address;
-
-          SymbolContext sc = curr_frame->GetSymbolContext(
-              eSymbolContextFunction | eSymbolContextSymbol);
-
+          bytes_to_skip = 0;
           if (sc.function) {
             func_start_address =
                 sc.function->GetAddressRange().GetBaseAddress();
@@ -282,16 +283,16 @@ bool ThreadPlanStepInRange::ShouldStop(Event *event_ptr) {
                                  m_thread.CalculateTarget().get()))
               bytes_to_skip = sc.symbol->GetPrologueByteSize();
           }
+        }
 
-          if (bytes_to_skip != 0) {
-            func_start_address.Slide(bytes_to_skip);
-            log = lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP);
-            if (log)
-              log->Printf("Pushing past prologue ");
+        if (bytes_to_skip != 0) {
+          func_start_address.Slide(bytes_to_skip);
+          log = lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP);
+          if (log)
+            log->Printf("Pushing past prologue ");
 
-            m_sub_plan_sp = m_thread.QueueThreadPlanForRunToAddress(
-                false, func_start_address, true);
-          }
+          m_sub_plan_sp = m_thread.QueueThreadPlanForRunToAddress(
+              false, func_start_address, true);
         }
       }
     }

@@ -11,9 +11,7 @@
 #include "lldb/Core/PluginManager.h"
 #include "lldb/Symbol/Function.h"
 #include "lldb/Symbol/Symbol.h"
-#include "lldb/Target/RegisterContext.h"
-#include "lldb/Target/Thread.h"
-#include "lldb/Target/ThreadPlan.h"
+#include "lldb/Target/Target.h"
 #include "lldb/Utility/ArchSpec.h"
 
 #include "llvm/BinaryFormat/ELF.h"
@@ -36,7 +34,7 @@ void ArchitecturePPC64::Terminate() {
 }
 
 std::unique_ptr<Architecture> ArchitecturePPC64::Create(const ArchSpec &arch) {
-  if (arch.GetMachine() != llvm::Triple::ppc64 ||
+  if (arch.GetMachine() != llvm::Triple::ppc64 &&
       arch.GetMachine() != llvm::Triple::ppc64le)
     return nullptr;
   return std::unique_ptr<Architecture>(new ArchitecturePPC64());
@@ -45,22 +43,14 @@ std::unique_ptr<Architecture> ArchitecturePPC64::Create(const ArchSpec &arch) {
 ConstString ArchitecturePPC64::GetPluginName() { return GetPluginNameStatic(); }
 uint32_t ArchitecturePPC64::GetPluginVersion() { return 1; }
 
-size_t ArchitecturePPC64::GetBytesToSkip(ThreadPlan &thread_plan,
-                                         StackFrame &curr_frame) const {
-  Thread &thread = thread_plan.GetThread();
-  TargetSP target = thread.CalculateTarget();
-
+size_t ArchitecturePPC64::GetBytesToSkip(Target &target, SymbolContext &sc,
+                                         lldb::addr_t curr_addr,
+                                         Address &func_start_address) const {
   // This code handles only ELF files
-  if (target->GetArchitecture().GetTriple().getObjectFormat() !=
+  if (target.GetArchitecture().GetTriple().getObjectFormat() !=
       llvm::Triple::ObjectFormatType::ELF) {
     return LLDB_INVALID_OFFSET;
   }
-
-  lldb::addr_t curr_addr = thread.GetRegisterContext()->GetPC();
-  Address func_start_address;
-
-  SymbolContext sc = curr_frame.GetSymbolContext(eSymbolContextFunction |
-                                                 eSymbolContextSymbol);
 
   auto GetLocalEntryOffset = [](Symbol &symbol) {
     uint32_t flags = symbol.GetFlags();
@@ -74,7 +64,7 @@ size_t ArchitecturePPC64::GetBytesToSkip(ThreadPlan &thread_plan,
   if (sc.function) {
     func_start_address = sc.function->GetAddressRange().GetBaseAddress();
     lldb::addr_t func_abs_start_addr =
-        func_start_address.GetLoadAddress(target.get());
+        func_start_address.GetLoadAddress(&target);
 
     if (curr_addr == func_abs_start_addr) {
       return sc.function->GetPrologueByteSize();
@@ -85,7 +75,7 @@ size_t ArchitecturePPC64::GetBytesToSkip(ThreadPlan &thread_plan,
   } else if (sc.symbol) {
     func_start_address = sc.symbol->GetAddress();
     lldb::addr_t func_abs_start_addr =
-        func_start_address.GetLoadAddress(target.get());
+        func_start_address.GetLoadAddress(&target);
     if (curr_addr == func_abs_start_addr ||
         curr_addr == func_abs_start_addr + GetLocalEntryOffset(*sc.symbol))
       return sc.symbol->GetPrologueByteSize();

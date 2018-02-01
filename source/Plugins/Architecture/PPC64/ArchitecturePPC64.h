@@ -25,8 +25,9 @@ public:
 
   void OverrideStopInfo(Thread &thread) override {}
 
-  virtual size_t GetBytesToSkip(ThreadPlan &thread_plan,
-                                StackFrame &curr_frame) const override;
+  virtual size_t GetBytesToSkip(Target &target, SymbolContext &sc,
+                                lldb::addr_t curr_addr,
+                                Address &func_start_address) const override;
 
 private:
   static std::unique_ptr<Architecture> Create(const ArchSpec &arch);
