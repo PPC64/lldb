@@ -160,7 +160,7 @@ ConstString GetPDBBuiltinTypeName(const PDBSymbolTypeBuiltin *pdb_type,
   case PDB_BuiltinType::HResult:
     return ConstString("HRESULT");
   case PDB_BuiltinType::BCD:
-    return ConstString("HRESULT");
+    return ConstString("BCD");
   case PDB_BuiltinType::None:
     return ConstString("...");
   }
@@ -270,7 +270,7 @@ lldb::TypeSP PDBASTParser::CreateLLDBTypeFromPDBType(const PDBSymbol &type) {
     // Drop last variadic argument.
     if (is_variadic)
       --num_args;
-    for (int arg_idx = 0; arg_idx < num_args; arg_idx++) {
+    for (uint32_t arg_idx = 0; arg_idx < num_args; arg_idx++) {
       auto arg = arg_enum->getChildAtIndex(arg_idx);
       if (!arg)
         break;
