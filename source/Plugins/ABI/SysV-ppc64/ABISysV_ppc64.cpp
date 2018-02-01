@@ -446,29 +446,17 @@ class ReturnValueExtractor {
       return true;
     }
 
-    std::string GetGPRName() const {
-      std::string regName;
-      llvm::raw_string_ostream ss(regName);
-      ss << "r" << m_index + 3;
-      ss.flush();
-      return regName;
-    }
-
-    std::string GetFPRName() const {
-      std::string regName;
-      llvm::raw_string_ostream ss(regName);
-      ss << "f" << m_index + 1;
-      ss.flush();
-      return regName;
-    }
-
-    std::string Name() const {
-      return m_type == GPR ? GetGPRName() : GetFPRName();
+    std::string GetName() const {
+      if (m_type == GPR)
+        return ("r" + llvm::Twine(m_index + 3)).str();
+      else
+        return ("f" + llvm::Twine(m_index + 1)).str();
     }
 
     // get raw register data
     bool GetRawData(uint64_t &raw_data) {
-      const RegisterInfo *reg_info = m_reg_ctx->GetRegisterInfoByName(Name());
+      const RegisterInfo *reg_info =
+          m_reg_ctx->GetRegisterInfoByName(GetName());
       if (!reg_info) {
         LLDB_LOG(m_log, LOG_PREFIX "Failed to get RegisterInfo");
         return false;
