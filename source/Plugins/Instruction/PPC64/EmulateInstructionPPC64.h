@@ -83,9 +83,12 @@ private:
     const char *name;
   } Opcode;
 
+  uint32_t m_fp = LLDB_INVALID_REGNUM;
+
   Opcode *GetOpcodeForInstruction(const uint32_t opcode);
 
   bool EmulateMFSPR(const uint32_t opcode);
+  bool EmulateLD(const uint32_t opcode);
   bool EmulateSTD(const uint32_t opcode);
   bool EmulateOR(const uint32_t opcode);
   bool EmulateADDI(const uint32_t opcode);
