@@ -32,10 +32,6 @@
 using namespace lldb;
 using namespace lldb_private;
 
-static uint32_t GetFramePointerRegisterNumber() {
-  return gpr_r31_ppc64le;
-}
-
 void EmulateInstructionPPC64::Initialize() {
   PluginManager::RegisterPlugin(GetPluginNameStatic(),
                                 GetPluginDescriptionStatic(), CreateInstance);
@@ -173,7 +169,10 @@ EmulateInstructionPPC64::GetOpcodeForInstruction(const uint32_t opcode) {
        "or RA, RS, RB"},
       {0xfc000000, 0x38000000,
        &EmulateInstructionPPC64::EmulateADDI,
-       "addi RT, RA, SI"}
+       "addi RT, RA, SI"},
+      {0xfc000003, 0xe8000000,
+       &EmulateInstructionPPC64::EmulateLD,
+       "ld RT, DS(RA)"}
   };
   static const size_t k_num_ppc_opcodes = llvm::array_lengthof(g_opcodes);
 
@@ -261,6 +260,40 @@ bool EmulateInstructionPPC64::EmulateMFSPR(const uint32_t opcode) {
   return true;
 }
 
+bool EmulateInstructionPPC64::EmulateLD(const uint32_t opcode) {
+  struct LD {
+    uint32_t : 2;
+    uint32_t ds : 14;
+    uint32_t ra : 5;
+    uint32_t rt : 5;
+    uint32_t op : 6;
+  };
+
+  const LD *inst = (const LD *)&opcode;
+  int32_t ds = llvm::SignExtend32<16>(inst->ds << 2);
+
+  // For now, tracking only loads from 0(r1) to r1
+  // (0(r1) is the ABI defined location to save previous SP)
+  if (inst->ra != gpr_r1_ppc64le || inst->rt != gpr_r1_ppc64le || ds != 0)
+    return false;
+
+  DPRINTF("EmulateLD: 0x%08lX: ld r%d, %d(r%d)\n",
+      m_addr, inst->rt, ds, inst->ra);
+
+  RegisterInfo r1_info;
+  if (!GetRegisterInfo(eRegisterKindLLDB, gpr_r1_ppc64le, r1_info))
+    return false;
+
+  // restore SP
+  Context ctx;
+  ctx.type = eContextRestoreStackPointer;
+  ctx.SetRegisterToRegisterPlusOffset(r1_info, r1_info, 0);
+
+  WriteRegisterUnsigned(ctx, eRegisterKindLLDB, gpr_r1_ppc64le, 0);
+  DPRINTF("EmulateLD: success!\n");
+  return true;
+}
+
 bool EmulateInstructionPPC64::EmulateSTD(const uint32_t opcode) {
   struct STD {
     uint32_t u : 2;
@@ -277,7 +310,8 @@ bool EmulateInstructionPPC64::EmulateSTD(const uint32_t opcode) {
     return false;
   // ... and only stores of SP, FP and LR (moved into r0 by a previous mfspr)
   if (inst->rs != gpr_r1_ppc64le &&
-      inst->rs != GetFramePointerRegisterNumber() &&
+      inst->rs != gpr_r31_ppc64le &&
+      inst->rs != gpr_r30_ppc64le &&
       inst->rs != gpr_r0_ppc64le)
     return false;
 
@@ -288,7 +322,7 @@ bool EmulateInstructionPPC64::EmulateSTD(const uint32_t opcode) {
     return false;
 
   int32_t ds = llvm::SignExtend32<16>(inst->ds << 2);
-  DPRINTF("EmulateSTD: 0x%08lX: std%s, r%d, %d(r%d)\n",
+  DPRINTF("EmulateSTD: 0x%08lX: std%s r%d, %d(r%d)\n",
       m_addr, inst->u? "u" : "", inst->rs, ds, inst->ra);
 
   // Make sure that r0 is really holding LR value
@@ -346,8 +380,10 @@ bool EmulateInstructionPPC64::EmulateOR(const uint32_t opcode) {
   };
 
   const OR *inst = (const OR *)&opcode;
-  // to be safe, process only the known 'mr r31, r1' prologue instruction
-  if (inst->rs != inst->rb || inst->ra != GetFramePointerRegisterNumber() ||
+  // to be safe, process only the known 'mr r31/r30, r1' prologue instructions
+  if (m_fp != LLDB_INVALID_REGNUM ||
+      inst->rs != inst->rb ||
+      (inst->ra != gpr_r30_ppc64le && inst->ra != gpr_r31_ppc64le) ||
       inst->rb != gpr_r1_ppc64le)
     return false;
 
@@ -369,6 +405,7 @@ bool EmulateInstructionPPC64::EmulateOR(const uint32_t opcode) {
   if (!success)
     return false;
   WriteRegisterUnsigned(ctx, eRegisterKindLLDB, inst->ra, rb);
+  m_fp = inst->ra;
   DPRINTF("EmulateOR: success!\n");
   return true;
 }
