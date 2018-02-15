@@ -26,7 +26,10 @@
 #if EMU_INST_PPC64_DEBUG
 #define DPRINTF(...) printf(__VA_ARGS__)
 #else
-#define DPRINTF(...) do { ; } while (0)
+#define DPRINTF(...)                                                           \
+  do {                                                                         \
+    ;                                                                          \
+  } while (0)
 #endif
 
 using namespace lldb;
@@ -46,7 +49,7 @@ ConstString EmulateInstructionPPC64::GetPluginNameStatic() {
   return g_plugin_name;
 }
 
-lldb_private::ConstString EmulateInstructionPPC64::GetPluginName() {
+ConstString EmulateInstructionPPC64::GetPluginName() {
   static ConstString g_plugin_name("EmulateInstructionPPC64");
   return g_plugin_name;
 }
@@ -125,9 +128,8 @@ bool EmulateInstructionPPC64::ReadInstruction() {
     Context ctx;
     ctx.type = eContextReadOpcode;
     ctx.SetNoArgs();
-    m_opcode.SetOpcode32(
-        ReadMemoryUnsigned(ctx, m_addr, 4, 0, &success),
-        GetByteOrder());
+    m_opcode.SetOpcode32(ReadMemoryUnsigned(ctx, m_addr, 4, 0, &success),
+                         GetByteOrder());
   }
   if (!success)
     m_addr = LLDB_INVALID_ADDRESS;
@@ -155,25 +157,18 @@ bool EmulateInstructionPPC64::CreateFunctionEntryUnwind(
 EmulateInstructionPPC64::Opcode *
 EmulateInstructionPPC64::GetOpcodeForInstruction(const uint32_t opcode) {
   static EmulateInstructionPPC64::Opcode g_opcodes[] = {
-      {0xfc0007ff, 0x7c0002a6,
-       &EmulateInstructionPPC64::EmulateMFSPR,
+      {0xfc0007ff, 0x7c0002a6, &EmulateInstructionPPC64::EmulateMFSPR,
        "mfspr RT, SPR"},
-      {0xfc000003, 0xf8000000,
-       &EmulateInstructionPPC64::EmulateSTD,
+      {0xfc000003, 0xf8000000, &EmulateInstructionPPC64::EmulateSTD,
        "std RS, DS(RA)"},
-      {0xfc000003, 0xf8000001,
-       &EmulateInstructionPPC64::EmulateSTD,
+      {0xfc000003, 0xf8000001, &EmulateInstructionPPC64::EmulateSTD,
        "stdu RS, DS(RA)"},
-      {0xfc0007fe, 0x7c000378,
-       &EmulateInstructionPPC64::EmulateOR,
+      {0xfc0007fe, 0x7c000378, &EmulateInstructionPPC64::EmulateOR,
        "or RA, RS, RB"},
-      {0xfc000000, 0x38000000,
-       &EmulateInstructionPPC64::EmulateADDI,
+      {0xfc000000, 0x38000000, &EmulateInstructionPPC64::EmulateADDI,
        "addi RT, RA, SI"},
-      {0xfc000003, 0xe8000000,
-       &EmulateInstructionPPC64::EmulateLD,
-       "ld RT, DS(RA)"}
-  };
+      {0xfc000003, 0xe8000000, &EmulateInstructionPPC64::EmulateLD,
+       "ld RT, DS(RA)"}};
   static const size_t k_num_ppc_opcodes = llvm::array_lengthof(g_opcodes);
 
   for (size_t i = 0; i < k_num_ppc_opcodes; ++i) {
@@ -236,9 +231,7 @@ bool EmulateInstructionPPC64::EmulateMFSPR(const uint32_t opcode) {
     uint32_t op : 6;
   };
 
-  enum {
-    SPR_LR = 0x100
-  };
+  enum { SPR_LR = 0x100 };
 
   const MFSPR *inst = (const MFSPR *)&opcode;
 
@@ -277,8 +270,8 @@ bool EmulateInstructionPPC64::EmulateLD(const uint32_t opcode) {
   if (inst->ra != gpr_r1_ppc64le || inst->rt != gpr_r1_ppc64le || ds != 0)
     return false;
 
-  DPRINTF("EmulateLD: 0x%08lX: ld r%d, %d(r%d)\n",
-      m_addr, inst->rt, ds, inst->ra);
+  DPRINTF("EmulateLD: 0x%08lX: ld r%d, %d(r%d)\n", m_addr, inst->rt, ds,
+          inst->ra);
 
   RegisterInfo r1_info;
   if (!GetRegisterInfo(eRegisterKindLLDB, gpr_r1_ppc64le, r1_info))
@@ -309,28 +302,25 @@ bool EmulateInstructionPPC64::EmulateSTD(const uint32_t opcode) {
   if (inst->ra != gpr_r1_ppc64le)
     return false;
   // ... and only stores of SP, FP and LR (moved into r0 by a previous mfspr)
-  if (inst->rs != gpr_r1_ppc64le &&
-      inst->rs != gpr_r31_ppc64le &&
-      inst->rs != gpr_r30_ppc64le &&
-      inst->rs != gpr_r0_ppc64le)
+  if (inst->rs != gpr_r1_ppc64le && inst->rs != gpr_r31_ppc64le &&
+      inst->rs != gpr_r30_ppc64le && inst->rs != gpr_r0_ppc64le)
     return false;
 
   bool success;
-  uint64_t rs =
-      ReadRegisterUnsigned(eRegisterKindLLDB, inst->rs, 0, &success);
+  uint64_t rs = ReadRegisterUnsigned(eRegisterKindLLDB, inst->rs, 0, &success);
   if (!success)
     return false;
 
   int32_t ds = llvm::SignExtend32<16>(inst->ds << 2);
-  DPRINTF("EmulateSTD: 0x%08lX: std%s r%d, %d(r%d)\n",
-      m_addr, inst->u? "u" : "", inst->rs, ds, inst->ra);
+  DPRINTF("EmulateSTD: 0x%08lX: std%s r%d, %d(r%d)\n", m_addr,
+          inst->u ? "u" : "", inst->rs, ds, inst->ra);
 
   // Make sure that r0 is really holding LR value
   // (this won't catch unlikely cases, such as r0 being overwritten after mfspr)
   uint32_t rs_num = inst->rs;
   if (inst->rs == gpr_r0_ppc64le) {
     uint64_t lr =
-      ReadRegisterUnsigned(eRegisterKindLLDB, gpr_lr_ppc64le, 0, &success);
+        ReadRegisterUnsigned(eRegisterKindLLDB, gpr_lr_ppc64le, 0, &success);
     if (!success || lr != rs)
       return false;
     rs_num = gpr_lr_ppc64le;
@@ -349,8 +339,7 @@ bool EmulateInstructionPPC64::EmulateSTD(const uint32_t opcode) {
   ctx.SetRegisterToRegisterPlusOffset(rs_info, ra_info, ds);
 
   // store
-  uint64_t ra =
-      ReadRegisterUnsigned(eRegisterKindLLDB, inst->ra, 0, &success);
+  uint64_t ra = ReadRegisterUnsigned(eRegisterKindLLDB, inst->ra, 0, &success);
   if (!success)
     return false;
 
@@ -381,8 +370,7 @@ bool EmulateInstructionPPC64::EmulateOR(const uint32_t opcode) {
 
   const OR *inst = (const OR *)&opcode;
   // to be safe, process only the known 'mr r31/r30, r1' prologue instructions
-  if (m_fp != LLDB_INVALID_REGNUM ||
-      inst->rs != inst->rb ||
+  if (m_fp != LLDB_INVALID_REGNUM || inst->rs != inst->rb ||
       (inst->ra != gpr_r30_ppc64le && inst->ra != gpr_r31_ppc64le) ||
       inst->rb != gpr_r1_ppc64le)
     return false;
@@ -400,8 +388,7 @@ bool EmulateInstructionPPC64::EmulateOR(const uint32_t opcode) {
 
   // move
   bool success;
-  uint64_t rb =
-      ReadRegisterUnsigned(eRegisterKindLLDB, inst->rb, 0, &success);
+  uint64_t rb = ReadRegisterUnsigned(eRegisterKindLLDB, inst->rb, 0, &success);
   if (!success)
     return false;
   WriteRegisterUnsigned(ctx, eRegisterKindLLDB, inst->ra, rb);
