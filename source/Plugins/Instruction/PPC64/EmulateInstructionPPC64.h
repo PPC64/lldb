@@ -17,6 +17,8 @@
 #include "lldb/Core/EmulateInstruction.h"
 #include "lldb/Interpreter/OptionValue.h"
 
+namespace lldb_private {
+
 class EmulateInstructionPPC64 : public lldb_private::EmulateInstruction {
 public:
   EmulateInstructionPPC64(const lldb_private::ArchSpec &arch)
@@ -76,22 +78,24 @@ public:
   CreateFunctionEntryUnwind(lldb_private::UnwindPlan &unwind_plan) override;
 
 private:
-  typedef struct {
+  struct Opcode {
     uint32_t mask;
     uint32_t value;
-    bool (EmulateInstructionPPC64::*callback)(const uint32_t opcode);
+    bool (EmulateInstructionPPC64::*callback)(uint32_t opcode);
     const char *name;
-  } Opcode;
+  };
 
   uint32_t m_fp = LLDB_INVALID_REGNUM;
 
-  Opcode *GetOpcodeForInstruction(const uint32_t opcode);
+  Opcode *GetOpcodeForInstruction(uint32_t opcode);
 
-  bool EmulateMFSPR(const uint32_t opcode);
-  bool EmulateLD(const uint32_t opcode);
-  bool EmulateSTD(const uint32_t opcode);
-  bool EmulateOR(const uint32_t opcode);
-  bool EmulateADDI(const uint32_t opcode);
+  bool EmulateMFSPR(uint32_t opcode);
+  bool EmulateLD(uint32_t opcode);
+  bool EmulateSTD(uint32_t opcode);
+  bool EmulateOR(uint32_t opcode);
+  bool EmulateADDI(uint32_t opcode);
 };
+
+} // namespace lldb_private
 
 #endif // EmulateInstructionPPC64_h_
