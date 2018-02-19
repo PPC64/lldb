@@ -16,48 +16,46 @@
 // Project includes
 #include "lldb/Core/EmulateInstruction.h"
 #include "lldb/Interpreter/OptionValue.h"
+#include "lldb/Utility/Log.h"
 
 namespace lldb_private {
 
-class EmulateInstructionPPC64 : public lldb_private::EmulateInstruction {
+class EmulateInstructionPPC64 : public EmulateInstruction {
 public:
-  EmulateInstructionPPC64(const lldb_private::ArchSpec &arch)
-      : EmulateInstruction(arch) {}
+  EmulateInstructionPPC64(const ArchSpec &arch);
 
   static void Initialize();
 
   static void Terminate();
 
-  static lldb_private::ConstString GetPluginNameStatic();
+  static ConstString GetPluginNameStatic();
 
   static const char *GetPluginDescriptionStatic();
 
-  static lldb_private::EmulateInstruction *
-  CreateInstance(const lldb_private::ArchSpec &arch,
-                 lldb_private::InstructionType inst_type);
+  static EmulateInstruction *CreateInstance(const ArchSpec &arch,
+                                            InstructionType inst_type);
 
-  static bool SupportsEmulatingInstructionsOfTypeStatic(
-      lldb_private::InstructionType inst_type) {
+  static bool
+  SupportsEmulatingInstructionsOfTypeStatic(InstructionType inst_type) {
     switch (inst_type) {
-    case lldb_private::eInstructionTypeAny:
-    case lldb_private::eInstructionTypePrologueEpilogue:
+    case eInstructionTypeAny:
+    case eInstructionTypePrologueEpilogue:
       return true;
 
-    case lldb_private::eInstructionTypePCModifying:
-    case lldb_private::eInstructionTypeAll:
+    case eInstructionTypePCModifying:
+    case eInstructionTypeAll:
       return false;
     }
     return false;
   }
 
-  lldb_private::ConstString GetPluginName() override;
+  ConstString GetPluginName() override;
 
   uint32_t GetPluginVersion() override { return 1; }
 
-  bool SetTargetTriple(const lldb_private::ArchSpec &arch) override;
+  bool SetTargetTriple(const ArchSpec &arch) override;
 
-  bool SupportsEmulatingInstructionsOfType(
-      lldb_private::InstructionType inst_type) override {
+  bool SupportsEmulatingInstructionsOfType(InstructionType inst_type) override {
     return SupportsEmulatingInstructionsOfTypeStatic(inst_type);
   }
 
@@ -65,17 +63,15 @@ public:
 
   bool EvaluateInstruction(uint32_t evaluate_options) override;
 
-  bool TestEmulation(lldb_private::Stream *out_stream,
-                     lldb_private::ArchSpec &arch,
-                     lldb_private::OptionValueDictionary *test_data) override {
+  bool TestEmulation(Stream *out_stream, ArchSpec &arch,
+                     OptionValueDictionary *test_data) override {
     return false;
   }
 
   bool GetRegisterInfo(lldb::RegisterKind reg_kind, uint32_t reg_num,
-                       lldb_private::RegisterInfo &reg_info) override;
+                       RegisterInfo &reg_info) override;
 
-  bool
-  CreateFunctionEntryUnwind(lldb_private::UnwindPlan &unwind_plan) override;
+  bool CreateFunctionEntryUnwind(UnwindPlan &unwind_plan) override;
 
 private:
   struct Opcode {
@@ -86,6 +82,7 @@ private:
   };
 
   uint32_t m_fp = LLDB_INVALID_REGNUM;
+  Log *m_log;
 
   Opcode *GetOpcodeForInstruction(uint32_t opcode);
 

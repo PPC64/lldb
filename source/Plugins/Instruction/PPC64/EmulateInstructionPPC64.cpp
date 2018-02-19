@@ -23,19 +23,12 @@
 
 #include "Plugins/Process/Utility/InstructionUtils.h"
 
-// debug messages
-#define EMU_INST_PPC64_DEBUG 0
-#if EMU_INST_PPC64_DEBUG
-#define DPRINTF(...) printf(__VA_ARGS__)
-#else
-#define DPRINTF(...)                                                           \
-  do {                                                                         \
-    ;                                                                          \
-  } while (0)
-#endif
-
 using namespace lldb;
 using namespace lldb_private;
+
+EmulateInstructionPPC64::EmulateInstructionPPC64(const ArchSpec &arch)
+    : EmulateInstruction(arch),
+      m_log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_UNWIND)) {}
 
 void EmulateInstructionPPC64::Initialize() {
   PluginManager::RegisterPlugin(GetPluginNameStatic(),
@@ -182,12 +175,12 @@ EmulateInstructionPPC64::GetOpcodeForInstruction(uint32_t opcode) {
 
 bool EmulateInstructionPPC64::EvaluateInstruction(uint32_t evaluate_options) {
   const uint32_t opcode = m_opcode.GetOpcode32();
-  // DPRINTF("PPC64::EvaluateInstruction: opcode=0x%08x\n", opcode);
+  // LLDB_LOG(m_log, "PPC64::EvaluateInstruction: opcode={0:X+8}", opcode);
   Opcode *opcode_data = GetOpcodeForInstruction(opcode);
   if (!opcode_data)
     return false;
 
-  // DPRINTF("PPC64::EvaluateInstruction: %s\n", opcode_data->name);
+  // LLDB_LOG(m_log, "PPC64::EvaluateInstruction: {0}", opcode_data->name);
   const bool auto_advance_pc =
       evaluate_options & eEmulateInstructionOptionAutoAdvancePC;
 
@@ -234,7 +227,7 @@ bool EmulateInstructionPPC64::EmulateMFSPR(uint32_t opcode) {
   if (rt != gpr_r0_ppc64le || spr != SPR_LR)
     return false;
 
-  DPRINTF("EmulateMFSPR: 0x%08lX: mfspr r0, lr\n", m_addr);
+  LLDB_LOG(m_log, "EmulateMFSPR: {0:X+8}: mfspr r0, lr", m_addr);
 
   bool success;
   uint64_t lr =
@@ -244,7 +237,7 @@ bool EmulateInstructionPPC64::EmulateMFSPR(uint32_t opcode) {
   Context context;
   context.type = eContextWriteRegisterRandomBits;
   WriteRegisterUnsigned(context, eRegisterKindLLDB, gpr_r0_ppc64le, lr);
-  DPRINTF("EmulateMFSPR: success!\n");
+  LLDB_LOG(m_log, "EmulateMFSPR: success!");
   return true;
 }
 
@@ -253,14 +246,15 @@ bool EmulateInstructionPPC64::EmulateLD(uint32_t opcode) {
   uint32_t ra = Bits32(opcode, 20, 16);
   uint32_t ds = Bits32(opcode, 15, 2);
 
-  ds = llvm::SignExtend32<16>(ds << 2);
+  int32_t ids = llvm::SignExtend32<16>(ds << 2);
 
   // For now, tracking only loads from 0(r1) to r1
   // (0(r1) is the ABI defined location to save previous SP)
-  if (ra != gpr_r1_ppc64le || rt != gpr_r1_ppc64le || ds != 0)
+  if (ra != gpr_r1_ppc64le || rt != gpr_r1_ppc64le || ids != 0)
     return false;
 
-  DPRINTF("EmulateLD: 0x%08lX: ld r%d, %d(r%d)\n", m_addr, rt, ds, ra);
+  LLDB_LOG(m_log, "EmulateLD: {0:X+8}: ld r{1}, {2}(r{3})", m_addr, rt, ids,
+           ra);
 
   RegisterInfo r1_info;
   if (!GetRegisterInfo(eRegisterKindLLDB, gpr_r1_ppc64le, r1_info))
@@ -272,7 +266,7 @@ bool EmulateInstructionPPC64::EmulateLD(uint32_t opcode) {
   ctx.SetRegisterToRegisterPlusOffset(r1_info, r1_info, 0);
 
   WriteRegisterUnsigned(ctx, eRegisterKindLLDB, gpr_r1_ppc64le, 0);
-  DPRINTF("EmulateLD: success!\n");
+  LLDB_LOG(m_log, "EmulateLD: success!");
   return true;
 }
 
@@ -295,9 +289,9 @@ bool EmulateInstructionPPC64::EmulateSTD(uint32_t opcode) {
   if (!success)
     return false;
 
-  ds = llvm::SignExtend32<16>(ds << 2);
-  DPRINTF("EmulateSTD: 0x%08lX: std%s r%d, %d(r%d)\n", m_addr, u ? "u" : "", rs,
-          ds, ra);
+  int32_t ids = llvm::SignExtend32<16>(ds << 2);
+  LLDB_LOG(m_log, "EmulateSTD: {0:X+8}: std{1} r{2}, {3}(r{4})", m_addr,
+           u ? "u" : "", rs, ids, ra);
 
   // Make sure that r0 is really holding LR value
   // (this won't catch unlikely cases, such as r0 being overwritten after mfspr)
@@ -320,14 +314,14 @@ bool EmulateInstructionPPC64::EmulateSTD(uint32_t opcode) {
 
   Context ctx;
   ctx.type = eContextPushRegisterOnStack;
-  ctx.SetRegisterToRegisterPlusOffset(rs_info, ra_info, ds);
+  ctx.SetRegisterToRegisterPlusOffset(rs_info, ra_info, ids);
 
   // store
   uint64_t ra_val = ReadRegisterUnsigned(eRegisterKindLLDB, ra, 0, &success);
   if (!success)
     return false;
 
-  lldb::addr_t addr = ra_val + ds;
+  lldb::addr_t addr = ra_val + ids;
   WriteMemory(ctx, addr, &rs_val, sizeof(rs_val));
 
   // update RA?
@@ -338,7 +332,7 @@ bool EmulateInstructionPPC64::EmulateSTD(uint32_t opcode) {
     WriteRegisterUnsigned(ctx, eRegisterKindLLDB, ra, addr);
   }
 
-  DPRINTF("EmulateSTD: success!\n");
+  LLDB_LOG(m_log, "EmulateSTD: success!");
   return true;
 }
 
@@ -352,7 +346,7 @@ bool EmulateInstructionPPC64::EmulateOR(uint32_t opcode) {
       (ra != gpr_r30_ppc64le && ra != gpr_r31_ppc64le) || rb != gpr_r1_ppc64le)
     return false;
 
-  DPRINTF("EmulateOR: 0x%08lX: mr r%d, r%d\n", m_addr, ra, rb);
+  LLDB_LOG(m_log, "EmulateOR: {0:X+8}: mr r{1}, r{2}", m_addr, ra, rb);
 
   // set context
   RegisterInfo ra_info;
@@ -370,7 +364,7 @@ bool EmulateInstructionPPC64::EmulateOR(uint32_t opcode) {
     return false;
   WriteRegisterUnsigned(ctx, eRegisterKindLLDB, ra, rb_val);
   m_fp = ra;
-  DPRINTF("EmulateOR: success!\n");
+  LLDB_LOG(m_log, "EmulateOR: success!");
   return true;
 }
 
@@ -386,7 +380,7 @@ bool EmulateInstructionPPC64::EmulateADDI(uint32_t opcode) {
     return false;
 
   int32_t si_val = llvm::SignExtend32<16>(si);
-  DPRINTF("EmulateADDI: 0x%08lX: addi r1, r1, %d\n", m_addr, si_val);
+  LLDB_LOG(m_log, "EmulateADDI: {0:X+8}: addi r1, r1, {1}", m_addr, si_val);
 
   // set context
   RegisterInfo r1_info;
@@ -404,6 +398,6 @@ bool EmulateInstructionPPC64::EmulateADDI(uint32_t opcode) {
   if (!success)
     return false;
   WriteRegisterUnsigned(ctx, eRegisterKindLLDB, gpr_r1_ppc64le, r1 + si_val);
-  DPRINTF("EmulateADDI: success!\n");
+  LLDB_LOG(m_log, "EmulateADDI: success!");
   return true;
 }
