@@ -58,9 +58,8 @@ public:
   /// get the number of bytes to skip, and that the caller should
   /// use the standard platform-independent method to get it.
   //------------------------------------------------------------------
-  virtual size_t GetBytesToSkip(Target &target, SymbolContext &sc,
-                                lldb::addr_t curr_addr,
-                                Address &func_start_address) const {
+  virtual size_t GetBytesToSkip(ThreadPlan &thread_plan,
+                                StackFrame &curr_frame) const {
     return LLDB_INVALID_OFFSET;
   }
 
