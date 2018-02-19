@@ -36,23 +36,27 @@ public:
   //------------------------------------------------------------------
   /// This method is used to get the number of bytes that should be
   /// skipped to reach the first instruction after a function
-  /// prologue. This number is always relative to first function
-  /// instruction, which should be set at 'func_start_address',
-  /// if this method returns any value other than LLDB_INVALID_OFFSET.
-  /// The first function instruction is defined here as the
-  /// instruction found at the address of the function symbol and
-  /// thus is independent of which entry point was used to enter the
-  /// function.
-  ///
-  /// Returning LLDB_INVALID_OFFSET means this method was not able to
-  /// get the number of bytes to skip, and that the caller should
-  /// use the standard platform-independent method to get it.
+  /// prologue.
   ///
   /// This is specifically used for PPC64, where functions may have
-  /// more than one entry point, global and local, so both should
-  /// be compared with curr_addr, in order to find out the number of
-  /// bytes that should be skipped, in case we are stopped at either
+  /// more than one entry point, so both should be compared with
+  /// the current value of PC, in order to find out the number of
+  /// bytes that should be skipped, in case we are stopped at a
   /// function entry point.
+  ///
+  /// Note that the value returned by this method is added to the
+  /// address of the first function instruction, which
+  /// corresponds to its entry point for other architectures, and to
+  /// PPC64's global entry point. For PPC64, the local entry point
+  /// is always an offset from the global entry point, corresponding
+  /// to instructions that should be skipped if the function is being
+  /// called from a local context. Thus, this method should always
+  /// return the same value, regardless of the PC being at a global
+  /// or local entry point.
+  ///
+  /// Returning an invalid offset means this method was not able to
+  /// get the number of bytes to skip, and that the caller should
+  /// use the standard platform-independent method to get it.
   //------------------------------------------------------------------
   virtual size_t GetBytesToSkip(Target &target, SymbolContext &sc,
                                 lldb::addr_t curr_addr,
