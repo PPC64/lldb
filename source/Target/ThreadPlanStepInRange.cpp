@@ -12,7 +12,6 @@
 // Other libraries and framework includes
 // Project includes
 #include "lldb/Target/ThreadPlanStepInRange.h"
-#include "lldb/Core/Architecture.h"
 #include "lldb/Core/Module.h"
 #include "lldb/Symbol/Function.h"
 #include "lldb/Symbol/Symbol.h"
@@ -25,6 +24,8 @@
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/RegularExpression.h"
 #include "lldb/Utility/Stream.h"
+
+#include "llvm/BinaryFormat/ELF.h"
 
 using namespace lldb;
 using namespace lldb_private;
@@ -257,41 +258,51 @@ bool ThreadPlanStepInRange::ShouldStop(Event *event_ptr) {
         m_step_past_prologue) {
       lldb::StackFrameSP curr_frame = m_thread.GetStackFrameAtIndex(0);
       if (curr_frame) {
-        size_t bytes_to_skip = LLDB_INVALID_OFFSET;
-        TargetSP target = m_thread.CalculateTarget();
+        size_t bytes_to_skip = 0;
+        lldb::addr_t curr_addr = m_thread.GetRegisterContext()->GetPC();
+        Address func_start_address;
 
-        Architecture *architecture = target->GetArchitecturePlugin();
-        if (architecture)
-          bytes_to_skip = architecture->GetBytesToSkip(*this, *curr_frame);
+        SymbolContext sc = curr_frame->GetSymbolContext(eSymbolContextFunction |
+                                                        eSymbolContextSymbol);
 
-        if (bytes_to_skip == LLDB_INVALID_OFFSET) {
-          lldb::addr_t curr_addr = m_thread.GetRegisterContext()->GetPC();
-          Address func_start_address;
+        if (sc.function) {
+          // get absolute function start address
+          func_start_address = sc.function->GetAddressRange().GetBaseAddress();
+          TargetSP target = m_thread.CalculateTarget();
+          lldb::addr_t func_abs_start_addr =
+            func_start_address.GetLoadAddress(target.get());
 
-          SymbolContext sc = curr_frame->GetSymbolContext(
-              eSymbolContextFunction | eSymbolContextSymbol);
-
-          if (sc.function) {
-            func_start_address =
-                sc.function->GetAddressRange().GetBaseAddress();
-            if (curr_addr == func_start_address.GetLoadAddress(target.get()))
+          // compare to current address
+          if (curr_addr == func_abs_start_addr) {
+            bytes_to_skip = sc.function->GetPrologueByteSize();
+          // ppc64le functions may have 2 entry points: global and local
+          } else if (target->GetArchitecture().GetTriple().getArch() ==
+                         llvm::Triple::ppc64le &&
+                     target->GetArchitecture().GetTriple().getObjectFormat() ==
+                         llvm::Triple::ObjectFormatType::ELF &&
+                     sc.symbol) {
+            uint32_t flags = sc.symbol->GetFlags();
+            unsigned char other = flags >> 8 & 0xFF;
+            int64_t offs = llvm::ELF::decodePPC64LocalEntryOffset(other);
+            if (curr_addr == func_abs_start_addr + offs)
               bytes_to_skip = sc.function->GetPrologueByteSize();
-          } else if (sc.symbol) {
-            func_start_address = sc.symbol->GetAddress();
-            if (curr_addr == func_start_address.GetLoadAddress(
-                                 m_thread.CalculateTarget().get()))
-              bytes_to_skip = sc.symbol->GetPrologueByteSize();
           }
+        } else if (sc.symbol) {
+          func_start_address = sc.symbol->GetAddress();
+          if (curr_addr ==
+              func_start_address.GetLoadAddress(
+                  m_thread.CalculateTarget().get()))
+            bytes_to_skip = sc.symbol->GetPrologueByteSize();
+        }
 
-          if (bytes_to_skip != 0) {
-            func_start_address.Slide(bytes_to_skip);
-            log = lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP);
-            if (log)
-              log->Printf("Pushing past prologue ");
+        if (bytes_to_skip != 0) {
+          func_start_address.Slide(bytes_to_skip);
+          log = lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP);
+          if (log)
+            log->Printf("Pushing past prologue ");
 
-            m_sub_plan_sp = m_thread.QueueThreadPlanForRunToAddress(
-                false, func_start_address, true);
-          }
+          m_sub_plan_sp = m_thread.QueueThreadPlanForRunToAddress(
+              false, func_start_address, true);
         }
       }
     }
