@@ -82,7 +82,6 @@ private:
   };
 
   uint32_t m_fp = LLDB_INVALID_REGNUM;
-  Log *m_log;
 
   Opcode *GetOpcodeForInstruction(uint32_t opcode);
 
