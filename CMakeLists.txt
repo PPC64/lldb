@@ -57,32 +57,23 @@ if (NOT LLDB_DISABLE_PYTHON)
   add_subdirectory(scripts)
 endif ()
 
-if(CMAKE_HOST_APPLE)
-  if(LLDB_CODESIGN_IDENTITY)
-    set(DEBUGSERVER_PATH $<TARGET_FILE:debugserver>)
-  else()
-    execute_process(
-      COMMAND xcode-select -p
-      OUTPUT_VARIABLE XCODE_DEV_DIR)
-    string(STRIP ${XCODE_DEV_DIR} XCODE_DEV_DIR)
-    set(DEBUGSERVER_PATH
-      "${XCODE_DEV_DIR}/../SharedFrameworks/LLDB.framework/Resources/debugserver")
-    set(SKIP_DEBUGSERVER True)
-  endif()
-  message(STATUS "Path to the lldb debugserver: ${DEBUGSERVER_PATH}")
-endif()
-
 add_subdirectory(source)
 add_subdirectory(tools)
 
 option(LLDB_INCLUDE_TESTS "Generate build targets for the LLDB unit tests."
   ${LLVM_INCLUDE_TESTS})
+option(LLDB_TEST_USE_CUSTOM_C_COMPILER "Use the C compiler provided via LLDB_TEST_C_COMPILER for building test inferiors (instead of the just-built compiler). Defaults to OFF." OFF)
+option(LLDB_TEST_USE_CUSTOM_CXX_COMPILER "Use the C++ compiler provided via LLDB_TEST_CXX_COMPILER for building test inferiors (instead of the just-built compiler). Defaults to OFF." OFF)
 if(LLDB_INCLUDE_TESTS)
-  if (TARGET clang)
+  if (NOT LLDB_TEST_USE_CUSTOM_C_COMPILER AND TARGET clang)
     set(LLDB_DEFAULT_TEST_C_COMPILER "${LLVM_BINARY_DIR}/${CMAKE_CFG_INTDIR}/bin/clang${CMAKE_EXECUTABLE_SUFFIX}")
-    set(LLDB_DEFAULT_TEST_CXX_COMPILER "${LLVM_BINARY_DIR}/${CMAKE_CFG_INTDIR}/bin/clang++${CMAKE_EXECUTABLE_SUFFIX}")
   else()
     set(LLDB_DEFAULT_TEST_C_COMPILER "")
+  endif()
+
+  if (NOT LLDB_TEST_USE_CUSTOM_CXX_COMPILER AND TARGET clang)
+    set(LLDB_DEFAULT_TEST_CXX_COMPILER "${LLVM_BINARY_DIR}/${CMAKE_CFG_INTDIR}/bin/clang++${CMAKE_EXECUTABLE_SUFFIX}")
+  else()
     set(LLDB_DEFAULT_TEST_CXX_COMPILER "")
   endif()
 
