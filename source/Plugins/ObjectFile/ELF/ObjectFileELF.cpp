@@ -2377,6 +2377,34 @@ unsigned ObjectFileELF::ParseSymbols(Symtab *symtab, user_id_t start_id,
     bool symbol_size_valid =
         symbol.st_size != 0 || symbol.getType() != STT_FUNC;
 
+    // PPC64: create an extra symbol for functions with local entry points.
+    const llvm::Triple::ArchType llvm_arch = arch.GetMachine();
+    if (llvm_arch == llvm::Triple::ppc64 ||
+        llvm_arch == llvm::Triple::ppc64le) {
+      int64_t loffs = llvm::ELF::decodePPC64LocalEntryOffset(symbol.st_other);
+      if (loffs) {
+        Symbol lep(i + start_id,      // Symbol table index
+                   symbol_name,       // symbol name.
+                   is_mangled,        // is the symbol name mangled?
+                   eSymbolTypeLocal,  // Type of this symbol
+                                      // (trampoline types can't be looked up by
+                                      // name)
+                   false,             // Is this globally visible?
+                   false,             // Is this symbol debug info?
+                   true,              // Is this symbol a trampoline?
+                   true,              // Is this symbol artificial?
+                   symbol_section_sp, // Section in which this symbol
+                                      // is defined or null.
+                   symbol_value + loffs, // Offset in section or symbol value.
+                   0,                    // Size in bytes of this symbol.
+                   false,                // Size is valid
+                   false,                // Contains linker annotations?
+                   0);                   // Symbol flags.
+
+        symtab->AddSymbol(lep);
+      }
+    }
+
     Symbol dc_symbol(
         i + start_id, // ID is the original symbol table index.
         mangled,
