@@ -90,21 +90,11 @@ class EnumTypesTestCase(TestBase):
                 'ops *',
                 '$'],
             patterns=['0x0+$'])
-
-        # For PPC64le, NULL pointer has the value zero for all types:
-        # http://refspecs.linuxfoundation.org/ELF/ppc64/PPC-elf64abi.html#FUND-TYPE
-        if (self.getArchitecture() == 'powerpc64le'):
-            self.expect(
-                'expr *f.op',
-                DATA_TYPES_DISPLAYED_CORRECTLY,
-                substrs=['0'],
-                patterns=['0'])
-        else:
-            self.expect(
-                'expr *f.op',
-                DATA_TYPES_DISPLAYED_CORRECTLY,
-                substrs=['error:'],
-                error=True)
+        self.expect(
+            'expr *f.op',
+            DATA_TYPES_DISPLAYED_CORRECTLY,
+            substrs=['error:'],
+            error=True)
 
         bkpt = self.target().FindBreakpointByID(bkpt_id)
         for enum_value in enum_values:
