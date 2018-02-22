@@ -24,7 +24,6 @@
 #include "lldb/Target/MemoryRegionInfo.h"
 #include "lldb/Target/Platform.h"
 #include "lldb/Target/Process.h"
-#include "lldb/Target/RegisterContext.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Target/Thread.h"
 #include "lldb/Target/ThreadPlanRunToAddress.h"
@@ -461,36 +460,6 @@ void DynamicLoaderPOSIXDYLD::RefreshModules() {
   }
 }
 
-static bool HandlePPC64LocalEntryPoint(Thread &thread, bool stop, Symbol *sym,
-                                       ThreadPlanSP &thread_plan_sp) {
-  Target &target = thread.GetProcess()->GetTarget();
-  if (target.GetArchitecture().GetMachine() != llvm::Triple::ppc64le)
-    return false;
-
-  ConstString sym_name = sym->GetMangled().GetMangledName();
-  if (!sym_name)
-    return false;
-
-  lldb::addr_t current_address = thread.GetRegisterContext()->GetPC(0);
-  lldb::addr_t gep_addr = sym->GetLoadAddress(&target);
-  if (current_address == gep_addr)
-    return false;
-
-  const ModuleList &images = target.GetImages();
-  SymbolContextList target_symbols;
-  images.FindSymbolsWithNameAndType(sym_name, eSymbolTypeLocal, target_symbols);
-  if (target_symbols.GetSize() != 1)
-    return false;
-  Symbol *lep = target_symbols[0].symbol;
-
-  if (current_address != lep->GetLoadAddress(&target))
-    return false;
-
-  std::vector<lldb::addr_t> addrs = {gep_addr + sym->GetPrologueByteSize()};
-  thread_plan_sp.reset(new ThreadPlanRunToAddress(thread, addrs, stop));
-  return true;
-}
-
 ThreadPlanSP
 DynamicLoaderPOSIXDYLD::GetStepThroughTrampolinePlan(Thread &thread,
                                                      bool stop) {
@@ -499,9 +468,6 @@ DynamicLoaderPOSIXDYLD::GetStepThroughTrampolinePlan(Thread &thread,
   StackFrame *frame = thread.GetStackFrameAtIndex(0).get();
   const SymbolContext &context = frame->GetSymbolContext(eSymbolContextSymbol);
   Symbol *sym = context.symbol;
-
-  if (HandlePPC64LocalEntryPoint(thread, stop, sym, thread_plan_sp))
-    return thread_plan_sp;
 
   if (sym == NULL || !sym->IsTrampoline())
     return thread_plan_sp;
