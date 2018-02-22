@@ -35,30 +35,32 @@ public:
 
   //------------------------------------------------------------------
   /// This method is used to get the number of bytes that should be
-  /// skipped to reach the first instruction after a function
-  /// prologue. This number is always relative to first function
-  /// instruction, which should be set at 'func_start_address',
-  /// if this method returns any value other than LLDB_INVALID_OFFSET.
-  /// The first function instruction is defined here as the
-  /// instruction found at the address of the function symbol and
-  /// thus is independent of which entry point was used to enter the
-  /// function.
+  /// skipped, from function start address, to reach the first
+  /// instruction after the prologue.
   ///
-  /// Returning LLDB_INVALID_OFFSET means this method was not able to
-  /// get the number of bytes to skip, and that the caller should
-  /// use the standard platform-independent method to get it.
+  /// This is called only if the standard platform-independent
+  /// code fails to get the number of bytes to skip, giving the plugin
+  /// a chance to try to find the missing info.
   ///
   /// This is specifically used for PPC64, where functions may have
   /// more than one entry point, global and local, so both should
-  /// be compared with curr_addr, in order to find out the number of
+  /// be compared with current PC, in order to find out the number of
   /// bytes that should be skipped, in case we are stopped at either
   /// function entry point.
   //------------------------------------------------------------------
-  virtual size_t GetBytesToSkip(Target &target, SymbolContext &sc,
-                                lldb::addr_t curr_addr,
-                                Address &func_start_address) const {
-    return LLDB_INVALID_OFFSET;
-  }
+  virtual size_t GetBytesToSkip(Thread &thread) const { return 0; }
+
+  //------------------------------------------------------------------
+  /// Adjust function breakpoint address, if needed. In some cases,
+  /// the function start address is not the right place to set the
+  /// breakpoint, specially in functions with multiple entry points.
+  ///
+  /// This is specifically used for PPC64, for functions that have
+  /// both a global and a local entry point. In this case, the
+  /// breakpoint is adjusted to the first function address reached
+  /// by both entry points.
+  //------------------------------------------------------------------
+  virtual void AdjustBreakpointAddress(Symbol *func, Address &addr) const {}
 
 private:
   Architecture(const Architecture &) = delete;

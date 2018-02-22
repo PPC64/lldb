@@ -16,6 +16,7 @@
 #include "Plugins/Language/CPlusPlus/CPlusPlusLanguage.h"
 #include "Plugins/Language/ObjC/ObjCLanguage.h"
 #include "lldb/Breakpoint/BreakpointLocation.h"
+#include "lldb/Core/Architecture.h"
 #include "lldb/Core/Module.h"
 #include "lldb/Symbol/Block.h"
 #include "lldb/Symbol/Function.h"
@@ -24,7 +25,6 @@
 #include "lldb/Target/Target.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/StreamString.h"
-#include "llvm/BinaryFormat/ELF.h"
 
 using namespace lldb;
 using namespace lldb_private;
@@ -338,7 +338,6 @@ BreakpointResolverName::SearchCallback(SearchFilter &filter,
     for (i = 0; i < func_list.GetSize(); i++) {
       if (func_list.GetContextAtIndex(i, sc)) {
         bool is_reexported = false;
-        bool sym_prologue_skipped = false;
 
         if (sc.block && sc.block->GetInlinedFunctionInfo()) {
           if (!sc.block->GetStartAddress(break_addr))
@@ -366,45 +365,19 @@ BreakpointResolverName::SearchCallback(SearchFilter &filter,
           if (m_skip_prologue && break_addr.IsValid()) {
             const uint32_t prologue_byte_size =
                 sc.symbol->GetPrologueByteSize();
-            if (prologue_byte_size) {
+            if (prologue_byte_size)
               break_addr.SetOffset(break_addr.GetOffset() + prologue_byte_size);
-              sym_prologue_skipped = true;
+            else {
+              Architecture *arch =
+                  m_breakpoint->GetTarget().GetArchitecturePlugin();
+              if (arch)
+                arch->AdjustBreakpointAddress(sc.symbol, break_addr);
             }
           }
         }
 
         if (break_addr.IsValid()) {
           if (filter.AddressPasses(break_addr)) {
-            // handle PPC64 Local Entry Point
-            if (!sym_prologue_skipped) {
-              if (sc.module_sp &&
-                  sc.module_sp->GetArchitecture().GetMachine() ==
-                      llvm::Triple::ppc64le &&
-                  sc.symbol) {
-                uint32_t flags = sc.symbol->GetFlags();
-                unsigned char other = flags >> 8 & 0xFF;
-                int32_t loffs = llvm::ELF::decodePPC64LocalEntryOffset(other);
-                if (loffs) {
-                  Address lep = break_addr;
-                  lep.SetOffset(break_addr.GetOffset() + loffs);
-                  if (filter.AddressPasses(lep)) {
-                    BreakpointLocationSP bp_loc_sp(
-                        AddLocation(lep, &new_location));
-                    bp_loc_sp->SetIsReExported(is_reexported);
-                    if (bp_loc_sp && new_location &&
-                        !m_breakpoint->IsInternal()) {
-                      if (log) {
-                        StreamString s;
-                        bp_loc_sp->GetDescription(
-                            &s, lldb::eDescriptionLevelVerbose);
-                        log->Printf("Added location: %s\n", s.GetData());
-                      }
-                    }
-                  }
-                }
-              }
-            }
-
             BreakpointLocationSP bp_loc_sp(
                 AddLocation(break_addr, &new_location));
             bp_loc_sp->SetIsReExported(is_reexported);
