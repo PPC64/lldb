@@ -31,9 +31,16 @@ class DeadStripTestCase(TestBase):
         exe = self.getBuildArtifact("a.out")
         self.runCmd("file " + exe, CURRENT_EXECUTABLE_SET)
 
+        arch = self.getArchitecture()
+        if arch == 'powerpc64le':
+            exp_brk_locs = 2
+        else:
+            exp_brk_locs = 1
+
         # Break by function name f1 (live code).
         lldbutil.run_break_set_by_symbol(
-            self, "f1", num_expected_locations=1, module_name="a.out")
+            self, "f1", num_expected_locations=exp_brk_locs,
+            module_name="a.out")
 
         # Break by function name f2 (dead code).
         lldbutil.run_break_set_by_symbol(
@@ -41,7 +48,8 @@ class DeadStripTestCase(TestBase):
 
         # Break by function name f3 (live code).
         lldbutil.run_break_set_by_symbol(
-            self, "f3", num_expected_locations=1, module_name="a.out")
+            self, "f3", num_expected_locations=exp_brk_locs,
+            module_name="a.out")
 
         self.runCmd("run", RUN_SUCCEEDED)
 
