@@ -25,6 +25,18 @@ public:
 
   void OverrideStopInfo(Thread &thread) override {}
 
+  //------------------------------------------------------------------
+  /// On PPC64, the global entry point corresponds to first function
+  /// instruction and the local entry point is always an offset from
+  /// the global entry point, corresponding to the instructions that
+  /// should be skipped if the function is being called from a local
+  /// context.
+  /// This method compares 'curr_addr' with both global and local
+  /// function entry points and if either one is equal to 'curr_addr'
+  /// then 'func_start_address' is set to the global entry point and
+  /// the prologue size in bytes (relative to the global entry point)
+  /// is returned.
+  //------------------------------------------------------------------
   virtual size_t GetBytesToSkip(Target &target, SymbolContext &sc,
                                 lldb::addr_t curr_addr,
                                 Address &func_start_address) const override;
