@@ -12,6 +12,7 @@
 // Other libraries and framework includes
 // Project includes
 #include "lldb/Target/ThreadPlanStepInRange.h"
+#include "lldb/Core/Architecture.h"
 #include "lldb/Core/Module.h"
 #include "lldb/Symbol/Function.h"
 #include "lldb/Symbol/Symbol.h"
@@ -256,35 +257,41 @@ bool ThreadPlanStepInRange::ShouldStop(Event *event_ptr) {
         m_step_past_prologue) {
       lldb::StackFrameSP curr_frame = m_thread.GetStackFrameAtIndex(0);
       if (curr_frame) {
-        size_t bytes_to_skip = 0;
-        lldb::addr_t curr_addr = m_thread.GetRegisterContext()->GetPC();
-        Address func_start_address;
+        size_t bytes_to_skip = LLDB_INVALID_OFFSET;
+        TargetSP target = m_thread.CalculateTarget();
 
-        SymbolContext sc = curr_frame->GetSymbolContext(eSymbolContextFunction |
-                                                        eSymbolContextSymbol);
+        Architecture *architecture = target->GetArchitecturePlugin();
+        if (architecture)
+          bytes_to_skip = architecture->GetBytesToSkip(*this, *curr_frame);
 
-        if (sc.function) {
-          func_start_address = sc.function->GetAddressRange().GetBaseAddress();
-          if (curr_addr ==
-              func_start_address.GetLoadAddress(
-                  m_thread.CalculateTarget().get()))
-            bytes_to_skip = sc.function->GetPrologueByteSize();
-        } else if (sc.symbol) {
-          func_start_address = sc.symbol->GetAddress();
-          if (curr_addr ==
-              func_start_address.GetLoadAddress(
-                  m_thread.CalculateTarget().get()))
-            bytes_to_skip = sc.symbol->GetPrologueByteSize();
-        }
+        if (bytes_to_skip == LLDB_INVALID_OFFSET) {
+          lldb::addr_t curr_addr = m_thread.GetRegisterContext()->GetPC();
+          Address func_start_address;
 
-        if (bytes_to_skip != 0) {
-          func_start_address.Slide(bytes_to_skip);
-          log = lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP);
-          if (log)
-            log->Printf("Pushing past prologue ");
+          SymbolContext sc = curr_frame->GetSymbolContext(
+              eSymbolContextFunction | eSymbolContextSymbol);
 
-          m_sub_plan_sp = m_thread.QueueThreadPlanForRunToAddress(
-              false, func_start_address, true);
+          if (sc.function) {
+            func_start_address =
+                sc.function->GetAddressRange().GetBaseAddress();
+            if (curr_addr == func_start_address.GetLoadAddress(target.get()))
+              bytes_to_skip = sc.function->GetPrologueByteSize();
+          } else if (sc.symbol) {
+            func_start_address = sc.symbol->GetAddress();
+            if (curr_addr == func_start_address.GetLoadAddress(
+                                 m_thread.CalculateTarget().get()))
+              bytes_to_skip = sc.symbol->GetPrologueByteSize();
+          }
+
+          if (bytes_to_skip != 0) {
+            func_start_address.Slide(bytes_to_skip);
+            log = lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP);
+            if (log)
+              log->Printf("Pushing past prologue ");
+
+            m_sub_plan_sp = m_thread.QueueThreadPlanForRunToAddress(
+                false, func_start_address, true);
+          }
         }
       }
     }
