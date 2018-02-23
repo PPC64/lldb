@@ -257,32 +257,32 @@ bool ThreadPlanStepInRange::ShouldStop(Event *event_ptr) {
         m_step_past_prologue) {
       lldb::StackFrameSP curr_frame = m_thread.GetStackFrameAtIndex(0);
       if (curr_frame) {
-        size_t bytes_to_skip = LLDB_INVALID_OFFSET;
+        size_t bytes_to_skip = 0;
         lldb::addr_t curr_addr = m_thread.GetRegisterContext()->GetPC();
-        TargetSP target = m_thread.CalculateTarget();
         Address func_start_address;
 
         SymbolContext sc = curr_frame->GetSymbolContext(eSymbolContextFunction |
                                                         eSymbolContextSymbol);
 
-        Architecture *architecture = target->GetArchitecturePlugin();
-        if (architecture)
-          bytes_to_skip = architecture->GetBytesToSkip(*target, sc, curr_addr,
-                                                       func_start_address);
+        if (sc.function) {
+          func_start_address = sc.function->GetAddressRange().GetBaseAddress();
+          if (curr_addr ==
+              func_start_address.GetLoadAddress(
+                  m_thread.CalculateTarget().get()))
+            bytes_to_skip = sc.function->GetPrologueByteSize();
+        } else if (sc.symbol) {
+          func_start_address = sc.symbol->GetAddress();
+          if (curr_addr ==
+              func_start_address.GetLoadAddress(
+                  m_thread.CalculateTarget().get()))
+            bytes_to_skip = sc.symbol->GetPrologueByteSize();
+        }
 
-        if (bytes_to_skip == LLDB_INVALID_OFFSET) {
-          bytes_to_skip = 0;
-          if (sc.function) {
-            func_start_address =
-                sc.function->GetAddressRange().GetBaseAddress();
-            if (curr_addr == func_start_address.GetLoadAddress(target.get()))
-              bytes_to_skip = sc.function->GetPrologueByteSize();
-          } else if (sc.symbol) {
-            func_start_address = sc.symbol->GetAddress();
-            if (curr_addr == func_start_address.GetLoadAddress(
-                                 m_thread.CalculateTarget().get()))
-              bytes_to_skip = sc.symbol->GetPrologueByteSize();
-          }
+        if (bytes_to_skip == 0) {
+          Architecture *arch =
+              m_thread.CalculateTarget()->GetArchitecturePlugin();
+          if (arch)
+            bytes_to_skip = arch->GetBytesToSkip(m_thread);
         }
 
         if (bytes_to_skip != 0) {

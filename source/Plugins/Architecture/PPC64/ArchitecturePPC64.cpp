@@ -11,7 +11,9 @@
 #include "lldb/Core/PluginManager.h"
 #include "lldb/Symbol/Function.h"
 #include "lldb/Symbol/Symbol.h"
+#include "lldb/Target/RegisterContext.h"
 #include "lldb/Target/Target.h"
+#include "lldb/Target/Thread.h"
 #include "lldb/Utility/ArchSpec.h"
 
 #include "llvm/BinaryFormat/ELF.h"
@@ -43,47 +45,40 @@ std::unique_ptr<Architecture> ArchitecturePPC64::Create(const ArchSpec &arch) {
 ConstString ArchitecturePPC64::GetPluginName() { return GetPluginNameStatic(); }
 uint32_t ArchitecturePPC64::GetPluginVersion() { return 1; }
 
-size_t ArchitecturePPC64::GetBytesToSkip(Target &target, SymbolContext &sc,
-                                         lldb::addr_t curr_addr,
-                                         Address &func_start_address) const {
+static int32_t GetLocalEntryOffset(Symbol *sym) {
+  uint32_t flags = sym->GetFlags();
+  unsigned char other = flags >> 8 & 0xFF;
+  return llvm::ELF::decodePPC64LocalEntryOffset(other);
+}
+
+size_t ArchitecturePPC64::GetBytesToSkip(Thread &thread) const {
+  TargetSP target = thread.CalculateTarget();
+
   // This code handles only ELF files
-  if (target.GetArchitecture().GetTriple().getObjectFormat() !=
-      llvm::Triple::ObjectFormatType::ELF) {
-    return LLDB_INVALID_OFFSET;
-  }
+  if (target->GetArchitecture().GetTriple().getObjectFormat() !=
+      llvm::Triple::ObjectFormatType::ELF)
+    return 0;
 
-  auto GetLocalEntryOffset = [](Symbol &symbol) {
-    uint32_t flags = symbol.GetFlags();
-    unsigned char other = flags >> 8 & 0xFF;
-    return llvm::ELF::decodePPC64LocalEntryOffset(other);
-  };
+  lldb::StackFrameSP curr_frame = thread.GetStackFrameAtIndex(0);
+  SymbolContext sc = curr_frame->GetSymbolContext(eSymbolContextSymbol);
 
-  // For either functions or symbols, compare PC with both global and local
-  // entry points, returning the number of bytes that should be skipped after
-  // the function global entry point if any address matches.
-  if (sc.function) {
-    func_start_address = sc.function->GetAddressRange().GetBaseAddress();
-    lldb::addr_t func_abs_start_addr =
-        func_start_address.GetLoadAddress(&target);
+  if (!sc.symbol)
+    return 0;
 
-    if (curr_addr == func_abs_start_addr) {
-      return sc.function->GetPrologueByteSize();
-    } else if (sc.symbol) {
-      if (curr_addr == func_abs_start_addr + GetLocalEntryOffset(*sc.symbol))
-        return sc.function->GetPrologueByteSize();
-    }
-  } else if (sc.symbol) {
-    func_start_address = sc.symbol->GetAddress();
-    lldb::addr_t func_abs_start_addr =
-        func_start_address.GetLoadAddress(&target);
-    if (curr_addr == func_abs_start_addr ||
-        curr_addr == func_abs_start_addr + GetLocalEntryOffset(*sc.symbol))
-      return sc.symbol->GetPrologueByteSize();
-  }
+  addr_t curr_addr = thread.GetRegisterContext()->GetPC();
+  addr_t lep =
+      sc.symbol->GetLoadAddress(target.get()) + GetLocalEntryOffset(sc.symbol);
+  if (curr_addr == lep)
+    return sc.symbol->GetPrologueByteSize();
 
-  // If we reached this point, then we were not able to match the current
-  // address with any function entry point.
-  // As the platform-independent method will certainly be unable to do it too,
-  // fall back to not skip anything.
   return 0;
+}
+
+void ArchitecturePPC64::AdjustBreakpointAddress(Symbol *func,
+                                                Address &addr) const {
+  int32_t loffs = GetLocalEntryOffset(func);
+  if (!loffs)
+    return;
+
+  addr.SetOffset(addr.GetOffset() + loffs);
 }
