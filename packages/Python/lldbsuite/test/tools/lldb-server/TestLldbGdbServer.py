@@ -1153,6 +1153,13 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
         # Get current target architecture
         target_arch = self.getArchitecture()
 
+        # In ppc64le, this function will be entered by its local entry point.
+        # Its offset, relative to the global entry point, is encoded in the
+        # 'other' field of the ELF function symbol, but for simple
+        # binaries/functions it's almost always 2 instructions (8 bytes)
+        if target_arch == "powerpc64le":
+            function_address = function_address + 8
+
         # Set the breakpoint.
         if (target_arch == "arm") or (target_arch == "aarch64"):
             # TODO: Handle case when setting breakpoint in thumb code
