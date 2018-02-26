@@ -18,6 +18,7 @@
 #include "lldb/Symbol/Symbol.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/RegisterContext.h"
+#include "lldb/Target/SectionLoadList.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Target/Thread.h"
 #include "lldb/Target/ThreadPlanStepOut.h"
@@ -278,11 +279,15 @@ bool ThreadPlanStepInRange::ShouldStop(Event *event_ptr) {
             bytes_to_skip = sc.symbol->GetPrologueByteSize();
         }
 
-        if (bytes_to_skip == 0) {
-          Architecture *arch =
-              m_thread.CalculateTarget()->GetArchitecturePlugin();
-          if (arch)
-            bytes_to_skip = arch->GetBytesToSkip(m_thread);
+        if (bytes_to_skip == 0 && sc.symbol) {
+          TargetSP target = m_thread.CalculateTarget();
+          Architecture *arch = target->GetArchitecturePlugin();
+          if (arch) {
+            Address curr_sec_addr;
+            target->GetSectionLoadList().ResolveLoadAddress(curr_addr,
+                                                            curr_sec_addr);
+            bytes_to_skip = arch->GetBytesToSkip(*sc.symbol, curr_sec_addr);
+          }
         }
 
         if (bytes_to_skip != 0) {

@@ -371,7 +371,7 @@ BreakpointResolverName::SearchCallback(SearchFilter &filter,
               Architecture *arch =
                   m_breakpoint->GetTarget().GetArchitecturePlugin();
               if (arch)
-                arch->AdjustBreakpointAddress(sc.symbol, break_addr);
+                arch->AdjustBreakpointAddress(*sc.symbol, break_addr);
             }
           }
         }
