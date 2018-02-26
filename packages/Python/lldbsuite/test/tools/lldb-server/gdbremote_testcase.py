@@ -1078,6 +1078,13 @@ class GdbRemoteTestCaseBase(TestBase):
 
         auxv_dict = {}
 
+        # PowerPC64le's auxvec has a special key that must be ignored.
+        # Besides, the auxvec may have multiple ignored key/values,
+        # which causes a failure in the "assert key not in dict" check
+        # below.
+        AT_IGNOREPPC = 22
+        arch = self.getArchitecture()
+
         while len(auxv_data) > 0:
             # Chop off key.
             raw_key = auxv_data[:word_size]
@@ -1090,6 +1097,9 @@ class GdbRemoteTestCaseBase(TestBase):
             # Convert raw text from target endian.
             key = unpack_endian_binary_string(endian, raw_key)
             value = unpack_endian_binary_string(endian, raw_value)
+
+            if arch == "powerpc64le" and key == AT_IGNOREPPC:
+                continue
 
             # Handle ending entry.
             if key == 0:
