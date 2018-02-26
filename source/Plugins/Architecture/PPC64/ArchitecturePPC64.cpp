@@ -36,8 +36,9 @@ void ArchitecturePPC64::Terminate() {
 }
 
 std::unique_ptr<Architecture> ArchitecturePPC64::Create(const ArchSpec &arch) {
-  if (arch.GetMachine() != llvm::Triple::ppc64 &&
-      arch.GetMachine() != llvm::Triple::ppc64le)
+  if ((arch.GetMachine() != llvm::Triple::ppc64 &&
+       arch.GetMachine() != llvm::Triple::ppc64le) ||
+      arch.GetTriple().getObjectFormat() != llvm::Triple::ObjectFormatType::ELF)
     return nullptr;
   return std::unique_ptr<Architecture>(new ArchitecturePPC64());
 }
@@ -45,36 +46,20 @@ std::unique_ptr<Architecture> ArchitecturePPC64::Create(const ArchSpec &arch) {
 ConstString ArchitecturePPC64::GetPluginName() { return GetPluginNameStatic(); }
 uint32_t ArchitecturePPC64::GetPluginVersion() { return 1; }
 
-static int32_t GetLocalEntryOffset(Symbol *sym) {
-  uint32_t flags = sym->GetFlags();
-  unsigned char other = flags >> 8 & 0xFF;
+static int32_t GetLocalEntryOffset(const Symbol &sym) {
+  unsigned char other = sym.GetFlags() >> 8 & 0xFF;
   return llvm::ELF::decodePPC64LocalEntryOffset(other);
 }
 
-size_t ArchitecturePPC64::GetBytesToSkip(Thread &thread) const {
-  TargetSP target = thread.CalculateTarget();
-
-  // This code handles only ELF files
-  if (target->GetArchitecture().GetTriple().getObjectFormat() !=
-      llvm::Triple::ObjectFormatType::ELF)
-    return 0;
-
-  lldb::StackFrameSP curr_frame = thread.GetStackFrameAtIndex(0);
-  SymbolContext sc = curr_frame->GetSymbolContext(eSymbolContextSymbol);
-
-  if (!sc.symbol)
-    return 0;
-
-  addr_t curr_addr = thread.GetRegisterContext()->GetPC();
-  addr_t lep =
-      sc.symbol->GetLoadAddress(target.get()) + GetLocalEntryOffset(sc.symbol);
-  if (curr_addr == lep)
-    return sc.symbol->GetPrologueByteSize();
-
+size_t ArchitecturePPC64::GetBytesToSkip(Symbol &func,
+                                         const Address &curr_addr) const {
+  if (curr_addr.GetFileAddress() ==
+      func.GetFileAddress() + GetLocalEntryOffset(func))
+    return func.GetPrologueByteSize();
   return 0;
 }
 
-void ArchitecturePPC64::AdjustBreakpointAddress(Symbol *func,
+void ArchitecturePPC64::AdjustBreakpointAddress(const Symbol &func,
                                                 Address &addr) const {
   int32_t loffs = GetLocalEntryOffset(func);
   if (!loffs)
