@@ -1247,6 +1247,14 @@ class Base(unittest2.TestCase):
             return True
         return False
 
+    def isPPC64le(self):
+        """Returns true is the architecture is PPC64LE."""
+        arch = self.getArchitecture()
+        print(arch)
+        if re.match("powerpc64le", arch):
+            return True
+        return False
+
     def getArchitecture(self):
         """Returns the architecture in effect the test suite is running with."""
         module = builder_module()
