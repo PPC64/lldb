@@ -1076,12 +1076,11 @@ class GdbRemoteTestCaseBase(TestBase):
 
         auxv_dict = {}
 
-        # PowerPC64le's auxvec has a special key that must be ignored.
-        # Besides, the auxvec may have multiple ignored key/values,
-        # which causes a failure in the "assert key not in dict" check
-        # below.
-        AT_IGNOREPPC = 22
+        ignored_keys_for_arch = { 'powerpc64le' : [22] }
         arch = self.getArchitecture()
+        ignore_keys = None
+        if arch in ignored_keys_for_arch:
+            ignore_keys = ignored_keys_for_arch[arch]
 
         while len(auxv_data) > 0:
             # Chop off key.
@@ -1096,7 +1095,7 @@ class GdbRemoteTestCaseBase(TestBase):
             key = unpack_endian_binary_string(endian, raw_key)
             value = unpack_endian_binary_string(endian, raw_value)
 
-            if arch == "powerpc64le" and key == AT_IGNOREPPC:
+            if ignore_keys and key in ignore_keys:
                 continue
 
             # Handle ending entry.
