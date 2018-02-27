@@ -1077,6 +1077,12 @@ class GdbRemoteTestCaseBase(TestBase):
 
         auxv_dict = {}
 
+        ignored_keys_for_arch = { 'powerpc64le' : [22] }
+        arch = self.getArchitecture()
+        ignore_keys = None
+        if arch in ignored_keys_for_arch:
+            ignore_keys = ignored_keys_for_arch[arch]
+
         while len(auxv_data) > 0:
             # Chop off key.
             raw_key = auxv_data[:word_size]
@@ -1089,6 +1095,9 @@ class GdbRemoteTestCaseBase(TestBase):
             # Convert raw text from target endian.
             key = unpack_endian_binary_string(endian, raw_key)
             value = unpack_endian_binary_string(endian, raw_value)
+
+            if ignore_keys and key in ignore_keys:
+                continue
 
             # Handle ending entry.
             if key == 0:
