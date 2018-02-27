@@ -1008,9 +1008,10 @@ class GdbRemoteTestCaseBase(TestBase):
                     reg_info["name"] in PREFERRED_REGISTER_NAMES):
                 # We found a preferred register.  Use it.
                 return reg_info["lldb_register_index"]
-            if ("generic" in reg_info) and (reg_info["generic"] == "fp"):
-                # A frame pointer register will do as a register to modify
-                # temporarily.
+            if ("generic" in reg_info) and (reg_info["generic"] == "fp" or
+                    reg_info["generic"] == "arg1"):
+                # A frame pointer or first arg register will do as a
+                # register to modify temporarily.
                 alternative_register_index = reg_info["lldb_register_index"]
 
         # We didn't find a preferred register.  Return whatever alternative register
@@ -1502,15 +1503,6 @@ class GdbRemoteTestCaseBase(TestBase):
         self.assertIsNotNone(context.get("function_address"))
         function_address = int(context.get("function_address"), 16)
 
-        arch = self.getArchitecture()
-
-        # In ppc64le, this function will be entered by its local entry point.
-        # Its offset, relative to the global entry point, is encoded in the
-        # 'other' field of the ELF function symbol, but for simple
-        # binaries/functions it's almost always 2 instructions (8 bytes)
-        if arch == "powerpc64le":
-            function_address = function_address + 8
-
         # Grab the data addresses.
         self.assertIsNotNone(context.get("g_c1_address"))
         g_c1_address = int(context.get("g_c1_address"), 16)
@@ -1573,6 +1565,7 @@ class GdbRemoteTestCaseBase(TestBase):
                                                           step_instruction=step_instruction)
         self.assertTrue(state_reached)
         expected_step_count = 1
+        arch = self.getArchitecture()
 
         # MIPS required "3" (ADDIU, SB, LD) machine instructions for updation
         # of variable value
