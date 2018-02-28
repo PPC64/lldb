@@ -1078,12 +1078,11 @@ class GdbRemoteTestCaseBase(TestBase):
 
         auxv_dict = {}
 
-        # PowerPC64le's auxvec has a special key that must be ignored.
-        # Besides, the auxvec may have multiple ignored key/values,
-        # which causes a failure in the "assert key not in dict" check
-        # below.
-        AT_IGNOREPPC = 22
+        ignored_keys_for_arch = { 'powerpc64le' : [22] }
         arch = self.getArchitecture()
+        ignore_keys = None
+        if arch in ignored_keys_for_arch:
+            ignore_keys = ignored_keys_for_arch[arch]
 
         while len(auxv_data) > 0:
             # Chop off key.
@@ -1098,7 +1097,7 @@ class GdbRemoteTestCaseBase(TestBase):
             key = unpack_endian_binary_string(endian, raw_key)
             value = unpack_endian_binary_string(endian, raw_value)
 
-            if arch == "powerpc64le" and key == AT_IGNOREPPC:
+            if ignore_keys and key in ignore_keys:
                 continue
 
             # Handle ending entry.
@@ -1514,15 +1513,6 @@ class GdbRemoteTestCaseBase(TestBase):
         self.assertIsNotNone(context.get("function_address"))
         function_address = int(context.get("function_address"), 16)
 
-        arch = self.getArchitecture()
-
-        # In ppc64le, this function will be entered by its local entry point.
-        # Its offset, relative to the global entry point, is encoded in the
-        # 'other' field of the ELF function symbol, but for simple
-        # binaries/functions it's almost always 2 instructions (8 bytes)
-        if arch == "powerpc64le":
-            function_address = function_address + 8
-
         # Grab the data addresses.
         self.assertIsNotNone(context.get("g_c1_address"))
         g_c1_address = int(context.get("g_c1_address"), 16)
@@ -1585,6 +1575,7 @@ class GdbRemoteTestCaseBase(TestBase):
                                                           step_instruction=step_instruction)
         self.assertTrue(state_reached)
         expected_step_count = 1
+        arch = self.getArchitecture()
 
         # MIPS required "3" (ADDIU, SB, LD) machine instructions for updation
         # of variable value
