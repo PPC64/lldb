@@ -65,7 +65,7 @@ bool LibStdcppTupleSyntheticFrontEnd::Update() {
     for (size_t i = 0; i < child_count; ++i) {
       ValueObjectSP child_sp = current_child->GetChildAtIndex(i, true);
       llvm::StringRef name_str = child_sp->GetName().GetStringRef();
-      if (name_str.startswith("std::_Tuple_impl<")) {
+      if (name_str.startswith("std::_Tuple_impl<") || name_str.startswith("_M_t") ) {
         next_child_sp = child_sp;
       } else if (name_str.startswith("std::_Head_base<")) {
         ValueObjectSP value_sp =

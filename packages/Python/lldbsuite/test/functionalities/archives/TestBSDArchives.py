@@ -29,7 +29,8 @@ class BSDArchivesTestCase(TestBase):
         oslist=["linux"],
         archs=[
             "arm",
-            "aarch64"],
+            "aarch64",
+            "powerpc64le"],
         bugnumber="llvm.org/pr27795")
     def test(self):
         """Break inside a() and b() defined within libfoo.a."""
