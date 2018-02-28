@@ -1008,11 +1008,10 @@ class GdbRemoteTestCaseBase(TestBase):
                     reg_info["name"] in PREFERRED_REGISTER_NAMES):
                 # We found a preferred register.  Use it.
                 return reg_info["lldb_register_index"]
-            # Check for "SP" since PPC64le's FP is the same as SP
-            if ("generic" in reg_info) and (reg_info["generic"] == "fp"
-                                            or reg_info["generic"] == "sp"):
-                # A frame pointer register will do as a register to modify
-                # temporarily.
+            if ("generic" in reg_info) and (reg_info["generic"] == "fp" or
+                    reg_info["generic"] == "arg1"):
+                # A frame pointer or first arg register will do as a
+                # register to modify temporarily.
                 alternative_register_index = reg_info["lldb_register_index"]
 
         # We didn't find a preferred register.  Return whatever alternative register
