@@ -64,6 +64,16 @@ bool LibStdcppUniquePtrSyntheticFrontEnd::Update() {
 
   ValueObjectSP tuple_sp =
       valobj_sp->GetChildMemberWithName(ConstString("_M_t"), true);
+
+  ValueObjectSP tuple_sp_child  =
+      tuple_sp->GetChildMemberWithName(ConstString("_M_t"), true);
+
+  /* if there is a _M_t child, the pointers are found in the
+   * tuple_sp_child. */
+  if (tuple_sp_child) {
+    tuple_sp = tuple_sp_child;
+  }
+
   if (!tuple_sp)
     return false;
 
