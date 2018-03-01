@@ -29,7 +29,8 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
     mydir = TestBase.compute_mydir(__file__)
 
     @debugserver_test
-    @skipIfDarwinEmbedded # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    @skipIfDarwinEmbedded
     def test_exe_starts_debugserver(self):
         self.init_debugserver_test()
         server = self.connect_to_debug_monitor()
@@ -47,7 +48,8 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
         self.expect_gdbremote_sequence()
 
     @debugserver_test
-    @skipIfDarwinEmbedded # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    @skipIfDarwinEmbedded
     def test_start_no_ack_mode_debugserver(self):
         self.init_debugserver_test()
         self.start_no_ack_mode()
@@ -70,7 +72,8 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
         self.expect_gdbremote_sequence()
 
     @debugserver_test
-    @skipIfDarwinEmbedded # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    @skipIfDarwinEmbedded
     def test_thread_suffix_supported_debugserver(self):
         self.init_debugserver_test()
         self.thread_suffix_supported()
@@ -92,7 +95,8 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
         self.expect_gdbremote_sequence()
 
     @debugserver_test
-    @skipIfDarwinEmbedded # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    @skipIfDarwinEmbedded
     def test_list_threads_in_stop_reply_supported_debugserver(self):
         self.init_debugserver_test()
         self.list_threads_in_stop_reply_supported()
@@ -118,7 +122,8 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
         self.expect_gdbremote_sequence()
 
     @debugserver_test
-    @skipIfDarwinEmbedded # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    @skipIfDarwinEmbedded
     def test_c_packet_works_debugserver(self):
         self.init_debugserver_test()
         self.build()
@@ -143,7 +148,8 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
         self.add_verified_launch_packets(launch_args)
         self.test_sequence.add_log_lines(
             ["read packet: $vCont;c#a8",
-             {"type": "output_match", "regex": self.maybe_strict_output_regex(r"hello, world\r\n")},
+             {"type": "output_match", "regex": self.maybe_strict_output_regex(
+                 r"hello, world\r\n")},
              "send packet: $W00#00"],
             True)
 
@@ -151,7 +157,8 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
         self.assertIsNotNone(context)
 
     @debugserver_test
-    @skipIfDarwinEmbedded # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    @skipIfDarwinEmbedded
     def test_inferior_print_exit_debugserver(self):
         self.init_debugserver_test()
         self.build()
@@ -187,7 +194,8 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
         self.expect_gdbremote_sequence()
 
     @debugserver_test
-    @skipIfDarwinEmbedded # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    @skipIfDarwinEmbedded
     def test_first_launch_stop_reply_thread_matches_first_qC_debugserver(self):
         self.init_debugserver_test()
         self.build()
@@ -223,7 +231,8 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
                 procs["inferior"].pid, False))
 
     @debugserver_test
-    @skipIfDarwinEmbedded # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    @skipIfDarwinEmbedded
     def test_attach_commandline_continue_app_exits_debugserver(self):
         self.init_debugserver_test()
         self.build()
@@ -261,7 +270,8 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
             lldbgdbserverutils.parse_reg_info_response(reg_info_packet))
 
     @debugserver_test
-    @skipIfDarwinEmbedded # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    @skipIfDarwinEmbedded
     def test_qRegisterInfo_returns_one_valid_result_debugserver(self):
         self.init_debugserver_test()
         self.build()
@@ -293,7 +303,8 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
             self.assert_valid_reg_info(reg_info)
 
     @debugserver_test
-    @skipIfDarwinEmbedded # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    @skipIfDarwinEmbedded
     def test_qRegisterInfo_returns_all_valid_results_debugserver(self):
         self.init_debugserver_test()
         self.build()
@@ -330,8 +341,9 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
         # Ensure we have a program counter register.
         self.assertTrue('pc' in generic_regs)
 
-        # Ensure we have a frame pointer register.
-        if self.getArchitecture() != 'powerpc64le':
+        # Ensure we have a frame pointer register. PPC64le's FP is the same as
+        # SP
+        if(self.getArchitecture() != 'powerpc64le'):
             self.assertTrue('fp' in generic_regs)
 
         # Ensure we have a stack pointer register.
@@ -341,7 +353,8 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
         self.assertTrue('flags' in generic_regs)
 
     @debugserver_test
-    @skipIfDarwinEmbedded # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    @skipIfDarwinEmbedded
     def test_qRegisterInfo_contains_required_generics_debugserver(self):
         self.init_debugserver_test()
         self.build()
@@ -377,7 +390,8 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
         self.assertTrue(len(register_sets) >= 1)
 
     @debugserver_test
-    @skipIfDarwinEmbedded # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    @skipIfDarwinEmbedded
     def test_qRegisterInfo_contains_at_least_one_register_set_debugserver(
             self):
         self.init_debugserver_test()
@@ -457,7 +471,8 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
         self.assertEqual(len(threads), 1)
 
     @debugserver_test
-    @skipIfDarwinEmbedded # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    @skipIfDarwinEmbedded
     def test_qThreadInfo_contains_thread_launch_debugserver(self):
         self.init_debugserver_test()
         self.build()
@@ -472,7 +487,8 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
         self.qThreadInfo_contains_thread()
 
     @debugserver_test
-    @skipIfDarwinEmbedded # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    @skipIfDarwinEmbedded
     def test_qThreadInfo_contains_thread_attach_debugserver(self):
         self.init_debugserver_test()
         self.build()
@@ -492,7 +508,8 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
         self.add_threadinfo_collection_packets()
         self.test_sequence.add_log_lines(
             ["read packet: $qC#00",
-             {"direction": "send", "regex": r"^\$QC([0-9a-fA-F]+)#", "capture": {1: "thread_id"}}
+             {"direction": "send",
+                 "regex": r"^\$QC([0-9a-fA-F]+)#", "capture": {1: "thread_id"}}
              ], True)
 
         # Run the packet stream.
@@ -515,7 +532,8 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
         self.assertEqual(threads[0], QC_thread_id)
 
     @debugserver_test
-    @skipIfDarwinEmbedded # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    @skipIfDarwinEmbedded
     def test_qThreadInfo_matches_qC_launch_debugserver(self):
         self.init_debugserver_test()
         self.build()
@@ -530,7 +548,8 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
         self.qThreadInfo_matches_qC()
 
     @debugserver_test
-    @skipIfDarwinEmbedded # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    @skipIfDarwinEmbedded
     def test_qThreadInfo_matches_qC_attach_debugserver(self):
         self.init_debugserver_test()
         self.build()
@@ -594,7 +613,8 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
             reg_index += 1
 
     @debugserver_test
-    @skipIfDarwinEmbedded # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    @skipIfDarwinEmbedded
     def test_p_returns_correct_data_size_for_each_qRegisterInfo_launch_debugserver(
             self):
         self.init_debugserver_test()
@@ -611,7 +631,8 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
         self.p_returns_correct_data_size_for_each_qRegisterInfo()
 
     @debugserver_test
-    @skipIfDarwinEmbedded # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    @skipIfDarwinEmbedded
     def test_p_returns_correct_data_size_for_each_qRegisterInfo_attach_debugserver(
             self):
         self.init_debugserver_test()
@@ -660,7 +681,8 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
             self.assertEqual(int(context.get("thread_id"), 16), thread)
 
     @debugserver_test
-    @skipIfDarwinEmbedded # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    @skipIfDarwinEmbedded
     def test_Hg_switches_to_3_threads_launch_debugserver(self):
         self.init_debugserver_test()
         self.build()
@@ -675,7 +697,8 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
         self.Hg_switches_to_3_threads()
 
     @debugserver_test
-    @skipIfDarwinEmbedded # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    @skipIfDarwinEmbedded
     def test_Hg_switches_to_3_threads_attach_debugserver(self):
         self.init_debugserver_test()
         self.build()
@@ -753,8 +776,10 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
 
                     # Continue sending the signal number to the continue thread.
                     # The commented out packet is a way to do this same operation without using
-                    # a $Hc (but this test is testing $Hc, so we'll stick with the former).
-                    "read packet: $C{0:x}#00".format(lldbutil.get_signal_number('SIGUSR1')),
+                    # a $Hc (but this test is testing $Hc, so we'll stick with
+                    # the former).
+                    "read packet: $C{0:x}#00".format(
+                        lldbutil.get_signal_number('SIGUSR1')),
                     # "read packet: $vCont;C{0:x}:{1:x};c#00".format(lldbutil.get_signal_number('SIGUSR1'), thread_id),
 
                     # FIXME: Linux does not report the thread stop on the delivered signal (SIGUSR1 here).  MacOSX debugserver does.
@@ -763,7 +788,8 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
                     # an about-to-be-delivered signal (for which we already sent a stop packet) to a different signal.
                     # {"direction":"send", "regex":r"^\$T([0-9a-fA-F]{2})thread:([0-9a-fA-F]+);", "capture":{1:"stop_signo", 2:"stop_thread_id"} },
                     #  "read packet: $c#63",
-                    {"type": "output_match", "regex": r"^received SIGUSR1 on thread id: ([0-9a-fA-F]+)\r\nthread ([0-9a-fA-F]+): past SIGSEGV\r\n", "capture": {1: "print_thread_id", 2: "post_handle_thread_id"}},
+                    {"type": "output_match", "regex": r"^received SIGUSR1 on thread id: ([0-9a-fA-F]+)\r\nthread ([0-9a-fA-F]+): past SIGSEGV\r\n", "capture": {
+                        1: "print_thread_id", 2: "post_handle_thread_id"}},
                 ],
                 True)
 
@@ -802,7 +828,8 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
 
     @unittest2.expectedFailure()
     @debugserver_test
-    @skipIfDarwinEmbedded # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    @skipIfDarwinEmbedded
     def test_Hc_then_Csignal_signals_correct_thread_launch_debugserver(self):
         self.init_debugserver_test()
         self.build()
@@ -838,7 +865,8 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
                 # Start running after initial stop.
                 "read packet: $c#63",
                 # Match output line that prints the memory address of the message buffer within the inferior.
-                # Note we require launch-only testing so we can get inferior otuput.
+                # Note we require launch-only testing so we can get inferior
+                # otuput.
                 {"type": "output_match", "regex": self.maybe_strict_output_regex(r"data address: 0x([0-9a-fA-F]+)\r\n"),
                  "capture": {1: "message_address"}},
                 # Now stop the inferior.
@@ -872,7 +900,8 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
         self.assertEqual(read_contents, MEMORY_CONTENTS)
 
     @debugserver_test
-    @skipIfDarwinEmbedded # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    @skipIfDarwinEmbedded
     def test_m_packet_reads_memory_debugserver(self):
         self.init_debugserver_test()
         self.build()
@@ -898,7 +927,8 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
         self.expect_gdbremote_sequence()
 
     @debugserver_test
-    @skipIfDarwinEmbedded # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    @skipIfDarwinEmbedded
     def test_qMemoryRegionInfo_is_supported_debugserver(self):
         self.init_debugserver_test()
         self.build()
@@ -923,7 +953,8 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
                 # Start running after initial stop.
                 "read packet: $c#63",
                 # Match output line that prints the memory address of the message buffer within the inferior.
-                # Note we require launch-only testing so we can get inferior otuput.
+                # Note we require launch-only testing so we can get inferior
+                # otuput.
                 {"type": "output_match", "regex": self.maybe_strict_output_regex(r"code address: 0x([0-9a-fA-F]+)\r\n"),
                  "capture": {1: "code_address"}},
                 # Now stop the inferior.
@@ -961,7 +992,8 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
         self.assert_address_within_memory_region(code_address, mem_region_dict)
 
     @debugserver_test
-    @skipIfDarwinEmbedded # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    @skipIfDarwinEmbedded
     def test_qMemoryRegionInfo_reports_code_address_as_executable_debugserver(
             self):
         self.init_debugserver_test()
@@ -987,7 +1019,8 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
                 # Start running after initial stop.
                 "read packet: $c#63",
                 # Match output line that prints the memory address of the message buffer within the inferior.
-                # Note we require launch-only testing so we can get inferior otuput.
+                # Note we require launch-only testing so we can get inferior
+                # otuput.
                 {"type": "output_match", "regex": self.maybe_strict_output_regex(r"stack address: 0x([0-9a-fA-F]+)\r\n"),
                  "capture": {1: "stack_address"}},
                 # Now stop the inferior.
@@ -1026,7 +1059,8 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
             stack_address, mem_region_dict)
 
     @debugserver_test
-    @skipIfDarwinEmbedded # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    @skipIfDarwinEmbedded
     def test_qMemoryRegionInfo_reports_stack_address_as_readable_writeable_debugserver(
             self):
         self.init_debugserver_test()
@@ -1053,7 +1087,8 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
                 # Start running after initial stop.
                 "read packet: $c#63",
                 # Match output line that prints the memory address of the message buffer within the inferior.
-                # Note we require launch-only testing so we can get inferior otuput.
+                # Note we require launch-only testing so we can get inferior
+                # otuput.
                 {"type": "output_match", "regex": self.maybe_strict_output_regex(r"heap address: 0x([0-9a-fA-F]+)\r\n"),
                  "capture": {1: "heap_address"}},
                 # Now stop the inferior.
@@ -1091,7 +1126,8 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
         self.assert_address_within_memory_region(heap_address, mem_region_dict)
 
     @debugserver_test
-    @skipIfDarwinEmbedded # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    @skipIfDarwinEmbedded
     def test_qMemoryRegionInfo_reports_heap_address_as_readable_writeable_debugserver(
             self):
         self.init_debugserver_test()
@@ -1122,7 +1158,8 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
             [  # Start running after initial stop.
                 "read packet: $c#63",
                 # Match output line that prints the memory address of the function call entry point.
-                # Note we require launch-only testing so we can get inferior otuput.
+                # Note we require launch-only testing so we can get inferior
+                # otuput.
                 {"type": "output_match", "regex": self.maybe_strict_output_regex(r"code address: 0x([0-9a-fA-F]+)\r\n"),
                  "capture": {1: "function_address"}},
                 # Now stop the inferior.
@@ -1247,7 +1284,8 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
         self.assertIsNotNone(context)
 
     @debugserver_test
-    @skipIfDarwinEmbedded # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    @skipIfDarwinEmbedded
     def test_software_breakpoint_set_and_remove_work_debugserver(self):
         self.init_debugserver_test()
         if self.getArchitecture() == "arm":
@@ -1274,7 +1312,8 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
     @skipUnlessPlatform(oslist=['linux'])
     @expectedFailureAndroid
     @skipIf(archs=no_match(['arm', 'aarch64']))
-    @skipIfDarwinEmbedded # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    @skipIfDarwinEmbedded
     def test_hardware_breakpoint_set_and_remove_work_debugserver(self):
         self.init_debugserver_test()
         if self.getArchitecture() == "arm":
@@ -1314,7 +1353,8 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
         self.assertTrue(len(supported_dict) > 0)
 
     @debugserver_test
-    @skipIfDarwinEmbedded # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    @skipIfDarwinEmbedded
     def test_qSupported_returns_known_stub_features_debugserver(self):
         self.init_debugserver_test()
         self.build()
@@ -1343,7 +1383,8 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
                 # Start running after initial stop.
                 "read packet: $c#63",
                 # Match output line that prints the memory address of the message buffer within the inferior.
-                # Note we require launch-only testing so we can get inferior otuput.
+                # Note we require launch-only testing so we can get inferior
+                # otuput.
                 {"type": "output_match", "regex": self.maybe_strict_output_regex(r"data address: 0x([0-9a-fA-F]+)\r\n"),
                  "capture": {1: "message_address"}},
                 # Now stop the inferior.
@@ -1367,16 +1408,19 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
         self.test_sequence.add_log_lines(
             ["read packet: $M{0:x},{1:x}:{2}#00".format(message_address, len(TEST_MESSAGE), hex_encoded_message),
              "send packet: $OK#00",
-             "read packet: $m{0:x},{1:x}#00".format(message_address, len(TEST_MESSAGE)),
+             "read packet: $m{0:x},{1:x}#00".format(
+                 message_address, len(TEST_MESSAGE)),
              "send packet: ${0}#00".format(hex_encoded_message),
-             "read packet: $x{0:x},{1:x}#00".format(message_address, len(TEST_MESSAGE)),
+             "read packet: $x{0:x},{1:x}#00".format(
+                 message_address, len(TEST_MESSAGE)),
              "send packet: ${0}#00".format(TEST_MESSAGE),
              "read packet: $m{0:x},4#00".format(message_address),
              "send packet: ${0}#00".format(hex_encoded_message[0:8]),
              "read packet: $x{0:x},4#00".format(message_address),
              "send packet: ${0}#00".format(TEST_MESSAGE[0:4]),
              "read packet: $c#63",
-             {"type": "output_match", "regex": r"^message: (.+)\r\n$", "capture": {1: "printed_message"}},
+             {"type": "output_match",
+                 "regex": r"^message: (.+)\r\n$", "capture": {1: "printed_message"}},
              "send packet: $W00#00",
              ], True)
         context = self.expect_gdbremote_sequence()
@@ -1388,7 +1432,8 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
         self.assertEqual(printed_message, TEST_MESSAGE + "X")
 
     @debugserver_test
-    @skipIfDarwinEmbedded # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    @skipIfDarwinEmbedded
     def test_written_M_content_reads_back_correctly_debugserver(self):
         self.init_debugserver_test()
         self.build()
@@ -1438,7 +1483,8 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
     # Come back to this.  I have the test rigged to verify that at least some
     # of the bit-flip writes work.
     @debugserver_test
-    @skipIfDarwinEmbedded # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    @skipIfDarwinEmbedded
     def test_P_writes_all_gpr_registers_debugserver(self):
         self.init_debugserver_test()
         self.build()
@@ -1500,7 +1546,8 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
                 self.reset_test_sequence()
                 self.test_sequence.add_log_lines(
                     ["read packet: $p{0:x};thread:{1:x}#00".format(reg_index, thread),
-                     {"direction": "send", "regex": r"^\$([0-9a-fA-F]+)#", "capture": {1: "p_response"}},
+                     {"direction": "send",
+                         "regex": r"^\$([0-9a-fA-F]+)#", "capture": {1: "p_response"}},
                      ], True)
                 context = self.expect_gdbremote_sequence()
                 self.assertIsNotNone(context)
@@ -1545,7 +1592,8 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
             self.reset_test_sequence()
             self.test_sequence.add_log_lines(
                 ["read packet: $p{0:x};thread:{1:x}#00".format(reg_index, thread),
-                 {"direction": "send", "regex": r"^\$([0-9a-fA-F]+)#", "capture": {1: "p_response"}},
+                 {"direction": "send",
+                     "regex": r"^\$([0-9a-fA-F]+)#", "capture": {1: "p_response"}},
                  ], True)
             context = self.expect_gdbremote_sequence()
             self.assertIsNotNone(context)
@@ -1563,7 +1611,8 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
     # Note: as of this moment, a hefty number of the GPR writes are failing
     # with E32 (everything except rax-rdx, rdi, rsi, rbp).
     @debugserver_test
-    @skipIfDarwinEmbedded # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
+    @skipIfDarwinEmbedded
     def test_P_and_p_thread_suffix_work_debugserver(self):
         self.init_debugserver_test()
         self.build()
