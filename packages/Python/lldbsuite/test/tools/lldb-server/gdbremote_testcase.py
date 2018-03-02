@@ -1008,10 +1008,9 @@ class GdbRemoteTestCaseBase(TestBase):
                     reg_info["name"] in PREFERRED_REGISTER_NAMES):
                 # We found a preferred register.  Use it.
                 return reg_info["lldb_register_index"]
-            if ("generic" in reg_info) and (reg_info["generic"] == "fp" or
-                    reg_info["generic"] == "arg1"):
-                # A frame pointer or first arg register will do as a
-                # register to modify temporarily.
+            if ("generic" in reg_info) and (reg_info["generic"] == "fp"):
+                # A frame pointer register will do as a register to modify
+                # temporarily.
                 alternative_register_index = reg_info["lldb_register_index"]
 
         # We didn't find a preferred register.  Return whatever alternative register
@@ -1077,12 +1076,6 @@ class GdbRemoteTestCaseBase(TestBase):
 
         auxv_dict = {}
 
-        ignored_keys_for_arch = { 'powerpc64le' : [22] }
-        arch = self.getArchitecture()
-        ignore_keys = None
-        if arch in ignored_keys_for_arch:
-            ignore_keys = ignored_keys_for_arch[arch]
-
         while len(auxv_data) > 0:
             # Chop off key.
             raw_key = auxv_data[:word_size]
@@ -1095,9 +1088,6 @@ class GdbRemoteTestCaseBase(TestBase):
             # Convert raw text from target endian.
             key = unpack_endian_binary_string(endian, raw_key)
             value = unpack_endian_binary_string(endian, raw_value)
-
-            if ignore_keys and key in ignore_keys:
-                continue
 
             # Handle ending entry.
             if key == 0:

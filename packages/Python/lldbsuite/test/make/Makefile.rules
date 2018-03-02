@@ -186,9 +186,9 @@ else
 	ifeq "$(ARCH)" "powerpc64le"
 		override ARCH := $(subst powerpc64le,64,$(ARCH))
 	endif
-  ifeq "$(ARCH)" "ppc64le"
-    override ARCH := $(subst ppc64le,64,$(ARCH))
-  endif
+	ifeq "(ARCH)" "ppc64le"
+                override ARCH := $(subst ppc64le,64,$(ARCH))
+	endif
 	ifeq "$(ARCH)" "aarch64"
 		override ARCH :=
 		override ARCHFLAG :=

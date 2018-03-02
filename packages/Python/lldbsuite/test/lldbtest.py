@@ -1250,7 +1250,6 @@ class Base(unittest2.TestCase):
     def isPPC64le(self):
         """Returns true is the architecture is PPC64LE."""
         arch = self.getArchitecture()
-        print(arch)
         if re.match("powerpc64le", arch):
             return True
         return False
@@ -2414,3 +2413,4 @@ def remove_file(file, num_retries=1, sleep_duration=0.5):
             time.sleep(sleep_duration)
             continue
     return False
+
