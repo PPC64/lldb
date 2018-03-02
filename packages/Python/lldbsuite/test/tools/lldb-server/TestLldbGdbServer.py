@@ -330,7 +330,7 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
         # Ensure we have a program counter register.
         self.assertTrue('pc' in generic_regs)
 
-        # Ensure we have a frame pointer register. 
+        # Ensure we have a frame pointer register.
         # PPC64le's FP is the same as SP.
         if(self.getArchitecture() != 'powerpc64le'):
             self.assertTrue('fp' in generic_regs)
