@@ -1247,6 +1247,13 @@ class Base(unittest2.TestCase):
             return True
         return False
 
+    def isPPC64le(self):
+        """Returns true is the architecture is PPC64LE."""
+        arch = self.getArchitecture()
+        if re.match("powerpc64le", arch):
+            return True
+        return False
+
     def getArchitecture(self):
         """Returns the architecture in effect the test suite is running with."""
         module = builder_module()
@@ -2406,3 +2413,4 @@ def remove_file(file, num_retries=1, sleep_duration=0.5):
             time.sleep(sleep_duration)
             continue
     return False
+

@@ -69,6 +69,7 @@ const char *StopInfoMachException::GetDescription() {
 
       case llvm::Triple::ppc:
       case llvm::Triple::ppc64:
+      case llvm::Triple::ppc64le:
         switch (m_exc_code) {
         case 0x101:
           code_desc = "EXC_PPC_VM_PROT_READ";
@@ -98,6 +99,7 @@ const char *StopInfoMachException::GetDescription() {
 
       case llvm::Triple::ppc:
       case llvm::Triple::ppc64:
+      case llvm::Triple::ppc64le:
         switch (m_exc_code) {
         case 1:
           code_desc = "EXC_PPC_INVALID_SYSCALL";
@@ -166,6 +168,7 @@ const char *StopInfoMachException::GetDescription() {
 
       case llvm::Triple::ppc:
       case llvm::Triple::ppc64:
+      case llvm::Triple::ppc64le:
         switch (m_exc_code) {
         case 1:
           code_desc = "EXC_PPC_OVERFLOW";
@@ -226,6 +229,7 @@ const char *StopInfoMachException::GetDescription() {
 
       case llvm::Triple::ppc:
       case llvm::Triple::ppc64:
+      case llvm::Triple::ppc64le:
         switch (m_exc_code) {
         case 1:
           code_desc = "EXC_PPC_BREAKPOINT";
@@ -330,6 +334,7 @@ StopInfoSP StopInfoMachException::CreateStopReasonWithMachException(
       switch (cpu) {
       case llvm::Triple::ppc:
       case llvm::Triple::ppc64:
+      case llvm::Triple::ppc64le:
         switch (exc_code) {
         case 1: // EXC_PPC_INVALID_SYSCALL
         case 2: // EXC_PPC_UNIPL_INST
@@ -442,6 +447,7 @@ StopInfoSP StopInfoMachException::CreateStopReasonWithMachException(
 
       case llvm::Triple::ppc:
       case llvm::Triple::ppc64:
+      case llvm::Triple::ppc64le:
         is_actual_breakpoint = exc_code == 1; // EXC_PPC_BREAKPOINT
         break;
 

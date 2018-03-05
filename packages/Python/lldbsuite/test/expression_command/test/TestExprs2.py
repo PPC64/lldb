@@ -44,7 +44,7 @@ class ExprCommands2TestCase(TestBase):
         # (int *) $0 = 0x00007fff5fbff258
 
         # Do anonymous symbols work?
-        self.expect("expression ((char**)environ)[0]",
+        self.expect("expression ((char**)__environ)[0]",
                     startstr="(char *) $1 = 0x")
         # (char *) $1 = 0x00007fff5fbff298 "Apple_PubSub_Socket_Render=/tmp/launch-7AEsUD/Render"
 
