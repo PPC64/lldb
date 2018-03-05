@@ -15,7 +15,7 @@ namespace ns
     int foo2(void) { printf("In foo2\n"); return 2; }
 }
 
-int x;
+int x; int (*foo1_p)();
 int main(int argc, char const *argv[]) { // BP_main_decl
     printf("Print a formatted string so that GCC does not optimize this printf call: %s\n", argv[0]);
   // This is a long comment with no code inside
@@ -25,6 +25,7 @@ int main(int argc, char const *argv[]) { // BP_main_decl
   // This is a long comment with no code inside
   // This is a long comment with no code inside
   // This is a long comment with no code inside
-    x = ns::foo1() + ns::foo2();
+    foo1_p = &ns::foo1;
+    x = foo1_p() + ns::foo2();
     return 0; // BP_return
 }
