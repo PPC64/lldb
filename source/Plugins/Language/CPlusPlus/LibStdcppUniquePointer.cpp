@@ -59,11 +59,11 @@ ValueObjectSP LibStdcppUniquePtrSyntheticFrontEnd::GetTuple() {
   ValueObjectSP valobj_backend_sp = m_backend.GetSP();
 
   if (!valobj_backend_sp)
-    return false;
+    return NULL;
 
   ValueObjectSP valobj_sp = valobj_backend_sp->GetNonSyntheticValue();
   if (!valobj_sp)
-    return false;
+    return NULL;
 
   ValueObjectSP obj_child_sp =
       valobj_sp->GetChildMemberWithName(ConstString("_M_t"), true);
