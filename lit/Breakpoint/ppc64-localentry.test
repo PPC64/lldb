@@ -5,4 +5,8 @@
 
 breakpoint set -n lfunc
 # CHECK-LABEL: breakpoint set -n lfunc
-# CHECK: Where: {{.*}}`lfunc + 8
+# CHECK: Address: {{.*}}`lfunc + 8
+
+breakpoint set -n simple
+# CHECK-LABEL: breakpoint set -n simple
+# CHECK: Address: {{.*}}`simple
