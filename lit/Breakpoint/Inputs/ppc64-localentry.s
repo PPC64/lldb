@@ -1,5 +1,6 @@
 	.text
 	.abiversion 2
+
 	.globl	lfunc
 	.p2align	4
 	.type	lfunc,@function
@@ -25,38 +26,22 @@ lfunc:                                  # @lfunc
 .Lfunc_end0:
 	.size	lfunc, .Lfunc_end0-.Lfunc_begin0
 
-	.globl	main
+	.globl	simple
 	.p2align	4
-	.type	main,@function
-main:                                   # @main
+	.type	simple,@function
+simple:                                 # @simple
 .Lfunc_begin1:
-.Lfunc_gep1:
-	addis 2, 12, .TOC.-.Lfunc_gep1@ha
-	addi 2, 2, .TOC.-.Lfunc_gep1@l
-.Lfunc_lep1:
-	.localentry	main, .Lfunc_lep1-.Lfunc_gep1
-# BB#0:
-	mflr 0
-	std 31, -8(1)
-	std 0, 16(1)
-	stdu 1, -112(1)
-	mr 31, 1
-	li 3, 3
-	li 4, 0
-	stw 4, 100(31)
-	extsw 3, 3
-	bl .Lfunc_lep0
-	nop
-	extsw 3, 3
-	addi 1, 1, 112
-	ld 0, 16(1)
-	ld 31, -8(1)
-	mtlr 0
+# %bb.0:                                # %entry
+	mr 4, 3
+	stw 4, -12(1)
+	lwz 4, -12(1)
+	mulli 4, 4, 10
+	extsw 3, 4
 	blr
 	.long	0
 	.quad	0
 .Lfunc_end1:
-	.size	main, .Lfunc_end1-.Lfunc_begin1
+	.size	simple, .Lfunc_end1-.Lfunc_begin1
 
 	.section	.toc,"aw",@progbits
 .LC0:
