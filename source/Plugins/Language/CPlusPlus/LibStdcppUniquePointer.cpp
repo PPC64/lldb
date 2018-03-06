@@ -59,11 +59,11 @@ ValueObjectSP LibStdcppUniquePtrSyntheticFrontEnd::GetTuple() {
   ValueObjectSP valobj_backend_sp = m_backend.GetSP();
 
   if (!valobj_backend_sp)
-    return NULL;
+    return nullptr;
 
   ValueObjectSP valobj_sp = valobj_backend_sp->GetNonSyntheticValue();
   if (!valobj_sp)
-    return NULL;
+    return nullptr;
 
   ValueObjectSP obj_child_sp =
       valobj_sp->GetChildMemberWithName(ConstString("_M_t"), true);
@@ -75,9 +75,9 @@ ValueObjectSP LibStdcppUniquePtrSyntheticFrontEnd::GetTuple() {
   // the obj_subchild_sp (for libstdc++ 6.0.23).
   if (obj_subchild_sp) {
     return obj_subchild_sp;
-  } else {
-    return obj_child_sp;
   }
+
+  return obj_child_sp;
 }
 
 bool LibStdcppUniquePtrSyntheticFrontEnd::Update() {
