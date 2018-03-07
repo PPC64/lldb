@@ -335,9 +335,11 @@ BreakpointResolverName::SearchCallback(SearchFilter &filter,
   // Remove any duplicates between the function list and the symbol list
   SymbolContext sc;
   if (func_list.GetSize()) {
+    Architecture *arch = m_breakpoint->GetTarget().GetArchitecturePlugin();
     for (i = 0; i < func_list.GetSize(); i++) {
       if (func_list.GetContextAtIndex(i, sc)) {
         bool is_reexported = false;
+        bool need_adjust_break_address = false;
 
         if (sc.block && sc.block->GetInlinedFunctionInfo()) {
           if (!sc.block->GetStartAddress(break_addr))
@@ -349,6 +351,10 @@ BreakpointResolverName::SearchCallback(SearchFilter &filter,
                 sc.function->GetPrologueByteSize();
             if (prologue_byte_size)
               break_addr.SetOffset(break_addr.GetOffset() + prologue_byte_size);
+            else
+              need_adjust_break_address = true;
+          }else {
+            need_adjust_break_address = true;
           }
         } else if (sc.symbol) {
           if (sc.symbol->GetType() == eSymbolTypeReExported) {
@@ -365,15 +371,21 @@ BreakpointResolverName::SearchCallback(SearchFilter &filter,
           if (m_skip_prologue && break_addr.IsValid()) {
             const uint32_t prologue_byte_size =
                 sc.symbol->GetPrologueByteSize();
-            if (prologue_byte_size)
+            if (prologue_byte_size) {
               break_addr.SetOffset(break_addr.GetOffset() + prologue_byte_size);
-            else {
-              Architecture *arch =
-                  m_breakpoint->GetTarget().GetArchitecturePlugin();
-              if (arch)
-                arch->AdjustBreakpointAddress(*sc.symbol, break_addr);
+            } else {
+              need_adjust_break_address = true;
             }
+          } else {
+            need_adjust_break_address = true;
           }
+        }
+
+        if(need_adjust_break_address && arch && sc.symbol) {
+          // Depending of the architecture, the address may be adjusted,
+          // as in PPC64le, which must avoid the global entry point, as it
+          // may not be executed when called by a local function.
+          arch->AdjustBreakpointAddress(*sc.symbol, break_addr);
         }
 
         if (break_addr.IsValid()) {
