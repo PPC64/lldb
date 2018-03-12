@@ -6,7 +6,6 @@
 #include <future>
 #include <iostream>
 #include <cassert>
-#include <functional>
 
 class TaskPoolImpl
 {
