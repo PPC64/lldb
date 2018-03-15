@@ -10,6 +10,7 @@ import platform
 import re
 import sys
 import tempfile
+import subprocess
 
 # Third-party modules
 import six
@@ -21,6 +22,7 @@ import use_lldb_suite
 import lldb
 from . import configuration
 from . import test_categories
+from . import lldbtest_config
 from lldbsuite.test_event.event_builder import EventBuilder
 from lldbsuite.support import funcutils
 from lldbsuite.test import lldbplatform
@@ -475,6 +477,11 @@ def expectedFlakeyAndroid(bugnumber=None, api_levels=None, archs=None):
             archs),
         bugnumber)
 
+def skipIfOutOfTreeDebugserver(func):
+    """Decorate the item to skip tests if using an out-of-tree debugserver."""
+    def is_out_of_tree_debugserver():
+        return "out-of-tree debugserver" if lldbtest_config.out_of_tree_debugserver else None
+    return skipTestIfFn(is_out_of_tree_debugserver)(func)
 
 def skipIfRemote(func):
     """Decorate the item to skip tests if testing remotely."""
@@ -741,3 +748,20 @@ def skipIfXmlSupportMissing(func):
     fail_value = True # More likely to notice if something goes wrong
     have_xml = xml.GetValueForKey("value").GetBooleanValue(fail_value)
     return unittest2.skipIf(not have_xml, "requires xml support")(func)
+
+# Call sysctl on darwin to see if a specified hardware feature is available on this machine.
+def skipUnlessFeature(feature):
+    def is_feature_enabled(self):
+        if platform.system() == 'Darwin':
+            try:
+                DEVNULL = open(os.devnull, 'w')
+                output = subprocess.check_output(["/usr/sbin/sysctl", feature], stderr=DEVNULL)
+                # If 'feature: 1' was output, then this feature is available and
+                # the test should not be skipped.
+                if re.match('%s: 1\s*' % feature, output):
+                    return None
+                else:
+                    return "%s is not supported on this system." % feature
+            except subprocess.CalledProcessError:
+                return "%s is not supported on this system." % feature
+    return skipTestIfFn(is_feature_enabled)
