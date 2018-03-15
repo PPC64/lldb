@@ -1077,6 +1077,12 @@ class GdbRemoteTestCaseBase(TestBase):
 
         auxv_dict = {}
 
+        # PowerPC64le's auxvec has a special key that must be ignored.
+        # This special key may be used multiple times, resulting in
+        # multiple key/value pairs with the same key, which would otherwise
+        # break this test check for repeated keys.
+        #
+        # AT_IGNOREPPC = 22
         ignored_keys_for_arch = { 'powerpc64le' : [22] }
         arch = self.getArchitecture()
         ignore_keys = None
