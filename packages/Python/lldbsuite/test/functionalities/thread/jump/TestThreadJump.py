@@ -51,7 +51,7 @@ class ThreadJumpTestCase(TestBase):
         # Try the double path, force it to return 'a'
         self.do_min_test(self.mark4, self.mark1, "j", "7")
         # Expected to fail on powerpc64le architecture
-        if(self.getArchitecture() != 'powerpc64le'):
+        if not self.isPPC64le():
             # Try the double path, force it to return 'b'
             self.do_min_test(self.mark4, self.mark2, "j", "8")
 
